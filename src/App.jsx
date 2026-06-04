@@ -1,6 +1,138 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+// Username + salted SHA-256 password. Change CREDENTIALS below to your own.
+// To generate a new hash: open browser console and run:
+//   crypto.subtle.digest("SHA-256", new TextEncoder().encode("SALT" + "yourpassword"))
+//     .then(b => console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")))
+
+const AUTH_SALT = "bq2026$";
+const CREDENTIALS = {
+  // username → SHA-256(salt + password)
+  // Default: username="husse"  password="brainqueue"  → change this!
+  "husse": "5b0db9c0f909d248a8d872a8c3e6dff7696f2b21db788894c38b61635870e9e7",
+};
+const SESSION_KEY = "bq_session";
+
+async function hashPassword(salt, password) {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(salt + password)
+  );
+  return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+
+async function checkCredentials(username, password) {
+  const expected = CREDENTIALS[username.toLowerCase()];
+  if (!expected || expected === "PLACEHOLDER_HASH") return false;
+  const actual = await hashPassword(AUTH_SALT, password);
+  return actual === expected;
+}
+
+function loadSession() {
+  try { return localStorage.getItem(SESSION_KEY) === "1"; }
+  catch { return false; }
+}
+function saveSession() { try { localStorage.setItem(SESSION_KEY, "1"); } catch {} }
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
+
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [hov, hovProps] = useHover();
+
+  const attempt = async () => {
+    if (!username || !password) return;
+    setLoading(true); setError(null);
+    const ok = await checkCredentials(username, password);
+    if (ok) { saveSession(); onLogin(); }
+    else { setError("Invalid credentials."); }
+    setLoading(false);
+  };
+
+  const onKey = (e) => { if (e.key === "Enter") attempt(); };
+
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: "#060610", padding: "1rem", fontFamily: "'DM Mono', monospace",
+    }}>
+      <MouseGlow />
+      <div style={{
+        ...glassStrong, borderRadius: "24px", padding: "2.5rem 2rem",
+        width: "100%", maxWidth: "360px", position: "relative", zIndex: 1,
+      }}>
+        <h1 style={{
+          fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem",
+          letterSpacing: "-0.03em", textAlign: "center", marginBottom: "0.25rem",
+        }}>
+          <span style={{ color: "#e8e8e8" }}>Brain</span>
+          <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
+        </h1>
+        <p style={{ color: "#333", fontSize: "0.72rem", textAlign: "center", marginBottom: "2rem" }}>
+          personal task system
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
+          <input
+            value={username} onChange={e => setUsername(e.target.value)} onKeyDown={onKey}
+            placeholder="username"
+            autoCapitalize="none" autoCorrect="off" spellCheck="false"
+            style={{
+              ...glass, borderRadius: "10px", padding: "0.85rem 1rem",
+              color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace",
+              outline: "none", width: "100%", boxSizing: "border-box",
+            }}
+          />
+          <input
+            type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={onKey}
+            placeholder="password"
+            style={{
+              ...glass, borderRadius: "10px", padding: "0.85rem 1rem",
+              color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace",
+              outline: "none", width: "100%", boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        {error && <p style={{ color: "#ff6b6b", fontSize: "0.78rem", marginBottom: "0.75rem", textAlign: "center" }}>{error}</p>}
+
+        <button
+          onClick={attempt} disabled={loading || !username || !password}
+          {...hovProps}
+          style={{
+            width: "100%", padding: "0.9rem",
+            background: hov ? "rgba(232,255,90,0.2)" : "rgba(232,255,90,0.1)",
+            border: "1px solid rgba(232,255,90,0.4)",
+            borderRadius: "12px", color: "#e8ff5a",
+            fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.9rem",
+            cursor: loading || !username || !password ? "not-allowed" : "pointer",
+            opacity: loading || !username || !password ? 0.5 : 1,
+            boxShadow: hov ? "0 0 20px rgba(232,255,90,0.15)" : "none",
+            transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+            transform: hov ? "scale(1.02)" : "scale(1)",
+          }}
+        >{loading ? "Checking…" : "Enter →"}</button>
+
+        <p style={{ color: "#222", fontSize: "0.65rem", textAlign: "center", marginTop: "1.5rem", lineHeight: 1.6 }}>
+          salted SHA-256 · session stored locally
+        </p>
+      </div>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #060610; }
+        input { -webkit-appearance: none; appearance: none; }
+      `}</style>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const CATEGORIES = ["Health", "Work", "Admin", "Social", "Finance", "Learning", "Personal"];
 const CATEGORY_COLORS = {
   Health: { accent: "#ff6b6b", glow: "255,107,107" },
@@ -670,23 +802,25 @@ function ExportButton({ tasks, weights }) {
   return <GlassButton onClick={exportCSV} style={{ padding: "0.6rem 0.9rem", fontSize: "0.75rem" }}>↓ CSV</GlassButton>;
 }
 
-export default function App() {
+function MainApp() {
   const [state, setState] = useState(() => loadState());
   const { tasks, apiKey, weights = DEFAULT_WEIGHTS } = state;
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
   const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(n); return n; });
 
-  // On mount: fetch remote tasks and merge with local
+  // On mount: fetch remote tasks, merge with local, then subscribe to realtime changes
   useEffect(() => {
     const sb = getSupabase();
     if (!sb) return;
+
     setSyncStatus("syncing");
+
+    // 1. Initial fetch + merge
     fetchRemoteTasks().then(remote => {
       if (!remote) { setSyncStatus("error"); return; }
       setState(s => {
         const merged = mergeTasks(s.tasks, remote);
-        // Upload any local tasks not yet in remote
         const remoteIds = new Set(remote.map(t => String(t.id)));
         s.tasks.forEach(t => { if (!remoteIds.has(String(t.id))) upsertTask(t); });
         const n = { ...s, tasks: merged };
@@ -695,6 +829,44 @@ export default function App() {
       });
       setSyncStatus("synced");
     });
+
+    // 2. Realtime subscription — listens to INSERT, UPDATE, DELETE from any device
+    const channel = sb
+      .channel("tasks-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tasks" }, ({ new: row }) => {
+        const task = fromRow(row);
+        setState(s => {
+          if (s.tasks.find(t => String(t.id) === String(task.id))) return s; // already have it
+          const n = { ...s, tasks: [...s.tasks, task] };
+          saveState(n);
+          return n;
+        });
+        setSyncStatus("synced");
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, ({ new: row }) => {
+        const task = fromRow(row);
+        setState(s => {
+          const n = { ...s, tasks: s.tasks.map(t => String(t.id) === String(task.id) ? task : t) };
+          saveState(n);
+          return n;
+        });
+        setSyncStatus("synced");
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tasks" }, ({ old: row }) => {
+        setState(s => {
+          const n = { ...s, tasks: s.tasks.filter(t => String(t.id) !== String(row.id)) };
+          saveState(n);
+          return n;
+        });
+        setSyncStatus("synced");
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") console.log("✓ Realtime connected");
+        if (status === "CHANNEL_ERROR") { console.error("Realtime error"); setSyncStatus("error"); }
+      });
+
+    // Cleanup on unmount
+    return () => { sb.removeChannel(channel); };
   }, []);
 
   const [view, setView] = useState(0);
@@ -798,6 +970,7 @@ export default function App() {
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                 <ExportButton tasks={tasks} weights={weights} />
+                <GlassButton onClick={() => { clearSession(); window.location.reload(); }} style={{ padding: "0.6rem 0.8rem", fontSize: "0.75rem" }}>⏻</GlassButton>
                 <GlassButton onClick={() => setShowSettings(true)} style={{ padding: "0.6rem 0.8rem" }}>⚙️</GlassButton>
                 <GlassButton onClick={() => setShowDump(true)}>Brain Dump</GlassButton>
                 <GlassButton onClick={() => setShowAdd(true)} accent="#e8ff5a">+ Add</GlassButton>
@@ -867,4 +1040,10 @@ export default function App() {
       {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} />}
     </>
   );
+}
+
+export default function App() {
+  const [authed, setAuthed] = useState(() => loadSession());
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+  return <MainApp />;
 }
