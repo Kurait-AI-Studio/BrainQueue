@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import {
+  CATEGORIES,
+  BRAIN_DUMP_MODEL,
+  BRAIN_DUMP_MAX_TOKENS,
+  BRAIN_DUMP_SYSTEM,
+  TASK_LIST_SCHEMA,
+  sanitizeTask,
+} from "./brainDumpSpec";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -133,7 +141,6 @@ function LoginScreen({ onLogin }) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CATEGORIES = ["Health", "Work", "Admin", "Social", "Finance", "Learning", "Personal"];
 const CATEGORY_COLORS = {
   Health: { accent: "#ff6b6b", glow: "255,107,107" },
   Work: { accent: "#6b9fff", glow: "107,159,255" },
@@ -607,6 +614,19 @@ function TaskModal({ task, onClose, onSave }) {
   );
 }
 
+// Compact −/value/+ stepper for tweaking a 1-5 score inline before adding.
+function Dim({ label, value, onChange }) {
+  const step = (d) => onChange(Math.min(5, Math.max(1, value + d)));
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+      <span style={{ fontSize: "0.62rem", color: "#555", fontFamily: "'Syne', sans-serif", width: "14px" }}>{label}</span>
+      <button onClick={() => step(-1)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "0.85rem", lineHeight: 1, padding: "0 2px" }}>−</button>
+      <span style={{ fontSize: "0.7rem", color: "#aaa", width: "10px", textAlign: "center" }}>{value}</span>
+      <button onClick={() => step(1)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "0.85rem", lineHeight: 1, padding: "0 2px" }}>+</button>
+    </div>
+  );
+}
+
 function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
   const [dump, setDump] = useState("");
   const [loading, setLoading] = useState(false);
@@ -622,42 +642,40 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey.trim(), "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6", max_tokens: 4000,
-          system: `You are a task classification assistant. The user gives you a brain dump — any language, possibly numbered like "5. Do thing" or bullet points. Extract every task and classify it.
-
-For each task output these fields:
-- title: clean English action item (verb + object, max 60 chars). Translate from French or other languages.
-- category: one of Health, Work, Admin, Social, Finance, Learning, Personal
-- urgency: integer 1-5 (5=today, 4=this week, 3=this month, 2=eventually, 1=someday)
-- importance: integer 1-5 (5=critical, 1=nice to have)
-- effort: integer 1-5 (1=2min, 2=15min, 3=1hr, 4=half day, 5=multi-day)
-- energy: integer 1-5 (1=zombie mode ok, 5=peak focus needed)
-- notes: brief context string (can be empty string)
-
-Return ONLY a JSON array. No markdown. No explanation. First character must be [ and last must be ].`,
-          messages: [{ role: "user", content: dump }]
+          model: BRAIN_DUMP_MODEL,
+          max_tokens: BRAIN_DUMP_MAX_TOKENS,
+          system: BRAIN_DUMP_SYSTEM,
+          // Structured outputs: the model is constrained to this schema, so the
+          // response text is guaranteed-valid JSON — no markdown fences, no
+          // regex scraping, no truncation surprises.
+          output_config: { format: { type: "json_schema", schema: TASK_LIST_SCHEMA } },
+          messages: [{ role: "user", content: dump }],
         })
       });
       const rawText = await response.text();
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 200)}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 300)}`);
       const data = JSON.parse(rawText);
       if (data.error) throw new Error(`API: ${data.error.message}`);
       const textBlock = data.content?.find(b => b.type === "text");
       if (!textBlock) throw new Error("No text in response");
-      const jsonMatch = textBlock.text.replace(/```json|```/g, "").trim().match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw new Error("No JSON array found");
-      const tasks = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(tasks) || !tasks.length) throw new Error("Empty task list");
+      const result = JSON.parse(textBlock.text);
+      const tasks = (result.tasks || []).map(sanitizeTask);
+      if (!tasks.length) throw new Error("No actionable tasks found in that dump.");
       setParsed(tasks);
     } catch (e) { setError(e.message); }
     setLoading(false);
   };
 
+  const updateTask = (i, patch) => setParsed(p => p.map((t, j) => j === i ? { ...t, ...patch } : t));
+  const removeTask = (i) => setParsed(p => p.filter((_, j) => j !== i));
+
   const confirmAdd = () => {
     const now = new Date().toISOString();
-    onTasksAdded(parsed.map(t => ({ ...t, id: Date.now() + Math.random(), done: false, addedAt: now, doneAt: null })));
+    onTasksAdded(parsed.map((t, i) => ({ ...t, id: Date.now() + i, done: false, addedAt: now, doneAt: null })));
     onClose();
   };
+
+  const onKey = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") parseDump(); };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
@@ -668,40 +686,49 @@ Return ONLY a JSON array. No markdown. No explanation. First character must be [
         </div>
         {!parsed ? (
           <>
-            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1rem", lineHeight: 1.7 }}>Paste anything — numbered, French, messy. Claude classifies it.</p>
-            <textarea value={dump} onChange={e => setDump(e.target.value)}
+            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1rem", lineHeight: 1.7 }}>Paste anything — numbered, prose, checkboxes, any language. Claude extracts and scores the tasks; you tweak before adding.</p>
+            <textarea value={dump} onChange={e => setDump(e.target.value)} onKeyDown={onKey} autoFocus
               placeholder={"5. Se renseigner sur Runpod\n6. Faire recette Sauce carotte\n7. Entreprise Mansa remplir documents\n8. Create Obsidian vault"}
               style={{ width: "100%", minHeight: "180px", ...glass, borderRadius: "12px", padding: "1rem", color: "#ccc", fontSize: "0.87rem", fontFamily: "'DM Mono', monospace", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
             <GlassButton onClick={parseDump} disabled={loading || !dump.trim()} accent="#e8ff5a" style={{ marginTop: "1rem", width: "100%", padding: "0.9rem" }}>
               {loading ? "Classifying…" : "Parse & classify →"}
             </GlassButton>
+            <p style={{ color: "#2e2e2e", fontSize: "0.65rem", textAlign: "center", marginTop: "0.6rem" }}>⌘/Ctrl + Enter · model: {BRAIN_DUMP_MODEL}</p>
             {error && <p style={{ color: "#ef4444", fontSize: "0.8rem", marginTop: "0.75rem" }}>❌ {error}</p>}
           </>
         ) : (
           <>
-            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1.2rem" }}>Found <strong style={{ color: "#e8ff5a" }}>{parsed.length} tasks</strong>. Confirm to add.</p>
+            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1.2rem" }}>Found <strong style={{ color: "#e8ff5a" }}>{parsed.length} task{parsed.length === 1 ? "" : "s"}</strong>. Edit anything, then add.</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1.5rem" }}>
               {parsed.map((t, i) => {
                 const acc = CAT_ACCENT(t.category);
                 return (
                   <div key={i} style={{ ...glass, borderRadius: "12px", padding: "0.85rem 1rem", borderLeft: `2px solid ${acc}66` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
-                      <span style={{ color: "#ddd", fontSize: "0.87rem", fontWeight: 600 }}>{t.title}</span>
-                      <span style={{ fontSize: "0.68rem", padding: "2px 8px", borderRadius: "20px", background: acc + "18", color: acc, whiteSpace: "nowrap", fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>{t.category}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.6rem", alignItems: "center" }}>
+                      <input value={t.title} onChange={e => updateTask(i, { title: e.target.value })}
+                        style={{ flex: 1, minWidth: 0, background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#ddd", fontSize: "0.87rem", fontWeight: 600, fontFamily: "'DM Mono', monospace", outline: "none", padding: "2px 0" }} />
+                      <span style={{ fontSize: "0.68rem", color: "#e8ff5a", fontWeight: 700, whiteSpace: "nowrap" }}>Score {calcScore(t, weights)}</span>
+                      <button onClick={() => removeTask(i)} title="Remove"
+                        style={{ background: "none", border: "none", color: "#2a2a2a", cursor: "pointer", fontSize: "0.85rem" }}
+                        onMouseEnter={e => e.target.style.color = "#ef4444"} onMouseLeave={e => e.target.style.color = "#2a2a2a"}>🗑</button>
                     </div>
-                    <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.4rem" }}>
-                      {[["U", t.urgency], ["I", t.importance], ["E", t.effort], ["⚡", t.energy]].map(([l, v]) => (
-                        <span key={l} style={{ fontSize: "0.68rem", color: "#444" }}>{l} <span style={{ color: "#888" }}>{v}/5</span></span>
-                      ))}
-                      <span style={{ fontSize: "0.68rem", color: "#e8ff5a", fontWeight: 700 }}>Score {calcScore(t, weights)}</span>
+                    <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.55rem", flexWrap: "wrap", alignItems: "center" }}>
+                      <select value={t.category} onChange={e => updateTask(i, { category: e.target.value })}
+                        style={{ background: acc + "14", border: `1px solid ${acc}33`, borderRadius: "20px", color: acc, fontSize: "0.66rem", fontFamily: "'Syne', sans-serif", fontWeight: 700, padding: "2px 8px", outline: "none", cursor: "pointer", appearance: "none" }}>
+                        {CATEGORIES.map(c => <option key={c} value={c} style={{ background: "#101018", color: "#ddd" }}>{c}</option>)}
+                      </select>
+                      <Dim label="U" value={t.urgency} onChange={v => updateTask(i, { urgency: v })} />
+                      <Dim label="I" value={t.importance} onChange={v => updateTask(i, { importance: v })} />
+                      <Dim label="E" value={t.effort} onChange={v => updateTask(i, { effort: v })} />
+                      <Dim label="⚡" value={t.energy} onChange={v => updateTask(i, { energy: v })} />
                     </div>
                   </div>
                 );
               })}
             </div>
             <div style={{ display: "flex", gap: "0.75rem" }}>
-              <GlassButton onClick={() => setParsed(null)} style={{ flex: 1 }}>← Edit</GlassButton>
-              <GlassButton onClick={confirmAdd} accent="#e8ff5a" style={{ flex: 2 }}>Add {parsed.length} tasks →</GlassButton>
+              <GlassButton onClick={() => setParsed(null)} style={{ flex: 1 }}>← Back</GlassButton>
+              <GlassButton onClick={confirmAdd} disabled={!parsed.length} accent="#e8ff5a" style={{ flex: 2 }}>Add {parsed.length} task{parsed.length === 1 ? "" : "s"} →</GlassButton>
             </div>
           </>
         )}
