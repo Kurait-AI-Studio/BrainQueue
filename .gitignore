@@ -25,3 +25,6 @@ dist-ssr
 .env
 node_modules
 exports_csv
+
+# eval run artifacts (keep the harness + config, ignore generated results)
+eval/results/
