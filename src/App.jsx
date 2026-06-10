@@ -11,58 +11,100 @@ import {
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
-// Username + salted SHA-256 password. Change CREDENTIALS below to your own.
-// To generate a new hash: open browser console and run:
-//   crypto.subtle.digest("SHA-256", new TextEncoder().encode("SALT" + "yourpassword"))
-//     .then(b => console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")))
+// Authentication is handled by Supabase Auth (OAuth2 + email magic link). The
+// browser holds a short-lived JWT (auto-refreshed by the SDK); Row-Level Security
+// on the `tasks` table scopes every read/write to the signed-in user. No password
+// ever touches our code. See supabase/migrations for the schema + RLS policies.
 
-const AUTH_SALT = "bq2026$";
-const CREDENTIALS = {
-  // username → SHA-256(salt + password)
-  // Default: username="husse"  password="brainqueue"  → change this!
-  "husse": "5b0db9c0f909d248a8d872a8c3e6dff7696f2b21db788894c38b61635870e9e7",
-};
-const SESSION_KEY = "bq_session";
+// The signed-in user's id, kept in module scope so the Supabase row helpers can
+// stamp user_id without threading it through every call site.
+let _userId = null;
+const setActiveUser = (id) => { _userId = id; };
 
-async function hashPassword(salt, password) {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(salt + password)
+const OAUTH_PROVIDERS = [
+  { id: "google", label: "Continue with Google" },
+  { id: "github", label: "Continue with GitHub" },
+];
+
+async function signInWithProvider(provider) {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not configured.");
+  const { error } = await sb.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: window.location.origin },
+  });
+  if (error) throw error;
+}
+
+async function signInWithEmail(email) {
+  const sb = getSupabase();
+  if (!sb) throw new Error("Supabase is not configured.");
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  if (error) throw error;
+}
+
+async function signOut() {
+  const sb = getSupabase();
+  if (sb) await sb.auth.signOut();
+}
+
+function GoogleMark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
   );
-  return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, "0")).join("");
 }
 
-async function checkCredentials(username, password) {
-  const expected = CREDENTIALS[username.toLowerCase()];
-  if (!expected || expected === "PLACEHOLDER_HASH") return false;
-  const actual = await hashPassword(AUTH_SALT, password);
-  return actual === expected;
-}
-
-function loadSession() {
-  try { return localStorage.getItem(SESSION_KEY) === "1"; }
-  catch { return false; }
-}
-function saveSession() { try { localStorage.setItem(SESSION_KEY, "1"); } catch {} }
-function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
-
-function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+function ProviderButton({ provider, busy, onClick }) {
   const [hov, hovProps] = useHover();
+  const isGoogle = provider.id === "google";
+  return (
+    <button onClick={onClick} disabled={!!busy} {...hovProps}
+      style={{
+        width: "100%", padding: "0.85rem 1rem", borderRadius: "12px",
+        display: "flex", alignItems: "center", justifyContent: "center", gap: "0.6rem",
+        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.85rem",
+        cursor: busy ? "not-allowed" : "pointer", opacity: busy && busy !== provider.id ? 0.45 : 1,
+        transition: "all 0.18s cubic-bezier(0.34,1.56,0.64,1)",
+        transform: hov && !busy ? "translateY(-1px)" : "none",
+        ...(isGoogle
+          ? { background: hov ? "#fff" : "#f3f3f3", color: "#1a1a1a", border: "1px solid #fff" }
+          : { ...glass, color: "#e8e8e8", border: `1px solid ${hov ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.12)"}` }),
+      }}>
+      {isGoogle ? <GoogleMark /> : <span style={{ fontSize: "1rem" }}>{provider.id === "github" ? "" : "→"}</span>}
+      {busy === provider.id ? "Redirecting…" : provider.label}
+    </button>
+  );
+}
 
-  const attempt = async () => {
-    if (!username || !password) return;
-    setLoading(true); setError(null);
-    const ok = await checkCredentials(username, password);
-    if (ok) { saveSession(); onLogin(); }
-    else { setError("Invalid credentials."); }
-    setLoading(false);
+function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(null);   // provider id | "email" | null
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(null);
+  const configured = !!getSupabase();
+
+  const oauth = async (id) => {
+    setBusy(id); setError(null);
+    try { await signInWithProvider(id); }
+    catch (e) { setError(e.message); setBusy(null); }
+    // on success the browser redirects away — no need to clear busy
   };
 
-  const onKey = (e) => { if (e.key === "Enter") attempt(); };
+  const magic = async () => {
+    if (!email.trim()) return;
+    setBusy("email"); setError(null);
+    try { await signInWithEmail(email.trim()); setSent(true); }
+    catch (e) { setError(e.message); }
+    setBusy(null);
+  };
 
   return (
     <div style={{
@@ -72,62 +114,79 @@ function LoginScreen({ onLogin }) {
       <MouseGlow />
       <div style={{
         ...glassStrong, borderRadius: "24px", padding: "2.5rem 2rem",
-        width: "100%", maxWidth: "360px", position: "relative", zIndex: 1,
+        width: "100%", maxWidth: "380px", position: "relative", zIndex: 1,
       }}>
         <h1 style={{
-          fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem",
+          fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.9rem",
           letterSpacing: "-0.03em", textAlign: "center", marginBottom: "0.25rem",
         }}>
           <span style={{ color: "#e8e8e8" }}>Brain</span>
           <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
         </h1>
-        <p style={{ color: "#333", fontSize: "0.72rem", textAlign: "center", marginBottom: "2rem" }}>
-          personal task system
+        <p style={{ color: "#444", fontSize: "0.74rem", textAlign: "center", marginBottom: "2rem" }}>
+          your tasks, on every device
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
-          <input
-            value={username} onChange={e => setUsername(e.target.value)} onKeyDown={onKey}
-            placeholder="username"
-            autoCapitalize="none" autoCorrect="off" spellCheck="false"
-            style={{
-              ...glass, borderRadius: "10px", padding: "0.85rem 1rem",
-              color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace",
-              outline: "none", width: "100%", boxSizing: "border-box",
-            }}
-          />
-          <input
-            type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={onKey}
-            placeholder="password"
-            style={{
-              ...glass, borderRadius: "10px", padding: "0.85rem 1rem",
-              color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace",
-              outline: "none", width: "100%", boxSizing: "border-box",
-            }}
-          />
-        </div>
+        {!configured ? (
+          <p style={{ color: "#ffb347", fontSize: "0.8rem", textAlign: "center", lineHeight: 1.7 }}>
+            Supabase isn't configured.<br />Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in <code>.env</code>.
+          </p>
+        ) : sent ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📬</div>
+            <p style={{ color: "#ccc", fontSize: "0.86rem", lineHeight: 1.7 }}>
+              Magic link sent to<br /><strong style={{ color: "#e8ff5a" }}>{email}</strong>
+            </p>
+            <p style={{ color: "#444", fontSize: "0.72rem", marginTop: "0.75rem" }}>Open it on this device to sign in.</p>
+            <button onClick={() => { setSent(false); setEmail(""); }}
+              style={{ background: "none", border: "none", color: "#6b9fff", fontSize: "0.76rem", cursor: "pointer", marginTop: "1rem" }}>
+              ← use a different email
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {OAUTH_PROVIDERS.map(p => (
+                <ProviderButton key={p.id} provider={p} busy={busy} onClick={() => oauth(p.id)} />
+              ))}
+            </div>
 
-        {error && <p style={{ color: "#ff6b6b", fontSize: "0.78rem", marginBottom: "0.75rem", textAlign: "center" }}>{error}</p>}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", margin: "1.3rem 0" }}>
+              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
+              <span style={{ color: "#333", fontSize: "0.68rem" }}>or email</span>
+              <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
+            </div>
 
-        <button
-          onClick={attempt} disabled={loading || !username || !password}
-          {...hovProps}
-          style={{
-            width: "100%", padding: "0.9rem",
-            background: hov ? "rgba(232,255,90,0.2)" : "rgba(232,255,90,0.1)",
-            border: "1px solid rgba(232,255,90,0.4)",
-            borderRadius: "12px", color: "#e8ff5a",
-            fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.9rem",
-            cursor: loading || !username || !password ? "not-allowed" : "pointer",
-            opacity: loading || !username || !password ? 0.5 : 1,
-            boxShadow: hov ? "0 0 20px rgba(232,255,90,0.15)" : "none",
-            transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
-            transform: hov ? "scale(1.02)" : "scale(1)",
-          }}
-        >{loading ? "Checking…" : "Enter →"}</button>
+            <input
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") magic(); }}
+              placeholder="you@example.com"
+              autoCapitalize="none" autoCorrect="off" spellCheck="false"
+              style={{
+                ...glass, borderRadius: "10px", padding: "0.85rem 1rem", marginBottom: "0.6rem",
+                color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace",
+                outline: "none", width: "100%", boxSizing: "border-box",
+              }}
+            />
+            <button
+              onClick={magic} disabled={!!busy || !email.trim()}
+              style={{
+                width: "100%", padding: "0.85rem",
+                background: "rgba(232,255,90,0.1)", border: "1px solid rgba(232,255,90,0.4)",
+                borderRadius: "12px", color: "#e8ff5a",
+                fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.85rem",
+                cursor: busy || !email.trim() ? "not-allowed" : "pointer",
+                opacity: busy || !email.trim() ? 0.5 : 1,
+              }}>
+              {busy === "email" ? "Sending…" : "Send magic link →"}
+            </button>
+          </>
+        )}
 
-        <p style={{ color: "#222", fontSize: "0.65rem", textAlign: "center", marginTop: "1.5rem", lineHeight: 1.6 }}>
-          salted SHA-256 · session stored locally
+        {error && <p style={{ color: "#ff6b6b", fontSize: "0.78rem", marginTop: "1rem", textAlign: "center" }}>{error}</p>}
+
+        <p style={{ color: "#222", fontSize: "0.64rem", textAlign: "center", marginTop: "1.6rem", lineHeight: 1.6 }}>
+          Secured by Supabase Auth · OAuth 2.0
         </p>
       </div>
       <style>{`
@@ -136,6 +195,19 @@ function LoginScreen({ onLogin }) {
         body { background: #060610; }
         input { -webkit-appearance: none; appearance: none; }
       `}</style>
+    </div>
+  );
+}
+
+function Splash() {
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: "#060610", fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.4rem",
+    }}>
+      <span style={{ color: "#e8e8e8" }}>Brain</span>
+      <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap'); body{background:#060610;}`}</style>
     </div>
   );
 }
@@ -177,12 +249,41 @@ function formatDate(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-const STORAGE_KEY = "brainqueue_v4";
-function loadState() {
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : { tasks: [], apiKey: "", weights: DEFAULT_WEIGHTS }; }
+// localStorage cache is namespaced per user, so signing in as someone else on the
+// same browser never surfaces the previous account's tasks or API key.
+const stateKey = (uid) => `brainqueue_v4_${uid || "anon"}`;
+function loadState(uid) {
+  try { const r = localStorage.getItem(stateKey(uid)); return r ? JSON.parse(r) : { tasks: [], apiKey: "", weights: DEFAULT_WEIGHTS }; }
   catch { return { tasks: [], apiKey: "", weights: DEFAULT_WEIGHTS }; }
 }
-function saveState(s) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {} }
+function saveState(uid, s) { try { localStorage.setItem(stateKey(uid), JSON.stringify(s)); } catch {} }
+
+// One-time recovery. Tasks created before the auth migration live under the old
+// non-namespaced "brainqueue_v4" key, which the per-user code no longer reads.
+// If this user has no tasks yet, adopt the legacy ones (then rename the legacy
+// key so a *different* account on the same browser can't inherit them). The mount
+// sync afterwards upserts the adopted tasks to Supabase under this user's id —
+// i.e. it re-homes your old tasks onto whatever account you're now signed in as.
+const LEGACY_STATE_KEY = "brainqueue_v4";
+function loadOrAdoptState(uid) {
+  const current = loadState(uid);
+  if (current.tasks?.length) return current;
+  try {
+    const legacyRaw = localStorage.getItem(LEGACY_STATE_KEY);
+    if (!legacyRaw) return current;
+    const legacy = JSON.parse(legacyRaw);
+    if (!legacy?.tasks?.length) return current;
+    const adopted = {
+      tasks: legacy.tasks,
+      apiKey: current.apiKey || legacy.apiKey || "",
+      weights: current.weights || legacy.weights || DEFAULT_WEIGHTS,
+    };
+    saveState(uid, adopted);
+    localStorage.setItem(`${LEGACY_STATE_KEY}_migrated_${uid}`, legacyRaw); // keep a backup
+    localStorage.removeItem(LEGACY_STATE_KEY);
+    return adopted;
+  } catch { return current; }
+}
 
 // Supabase client (lazy — only init if env vars present)
 let _supabase = null;
@@ -195,9 +296,11 @@ function getSupabase() {
   return _supabase;
 }
 
-// Supabase helpers — snake_case ↔ camelCase conversion
+// Supabase helpers — snake_case ↔ camelCase conversion. Every row carries the
+// owner's user_id; RLS rejects writes where user_id ≠ auth.uid().
 const toRow = (t) => ({
   id: String(t.id),
+  user_id: _userId,
   title: t.title,
   category: t.category,
   urgency: t.urgency,
@@ -224,10 +327,11 @@ const fromRow = (r) => ({
   doneAt: r.done_at,
 });
 
-async function fetchRemoteTasks() {
+async function fetchRemoteTasks(userId) {
   const sb = getSupabase();
   if (!sb) return null;
-  const { data, error } = await sb.from("tasks").select("*");
+  // RLS already scopes this to the user; the explicit filter is belt-and-suspenders.
+  const { data, error } = await sb.from("tasks").select("*").eq("user_id", userId);
   if (error) { console.error("Supabase fetch:", error); return null; }
   return data.map(fromRow);
 }
@@ -244,6 +348,170 @@ async function deleteRemoteTask(id) {
   if (!sb) return;
   const { error } = await sb.from("tasks").delete().eq("id", String(id));
   if (error) console.error("Supabase delete:", error);
+}
+
+// ─── Calendar ────────────────────────────────────────────────────────────────
+// One editable event per task, committed through whichever backend the user's
+// auth provider supports — one-click via API where we can, .ics download (which
+// every calendar app, including Apple Calendar, opens natively) everywhere else.
+//
+// To add a provider with one-click insert later: sign-in support for it (add to
+// OAUTH_PROVIDERS) + an entry here with its scope + an `insert` adapter below.
+const CAL_BACKENDS = {
+  google: {
+    label: "Google Calendar",
+    scope: "https://www.googleapis.com/auth/calendar.events",
+    // access_type=offline + prompt=consent so the consent screen actually shows
+    // the calendar permission (and Google issues a token that carries the scope).
+    queryParams: { access_type: "offline", prompt: "consent" },
+  },
+  azure: {
+    label: "Outlook Calendar",
+    scope: "Calendars.ReadWrite offline_access",
+    queryParams: { prompt: "consent" },
+  },
+};
+
+// The provider the signed-in user authenticated with (google | github | email | azure | apple …).
+const userProvider = (session) => session?.user?.app_metadata?.provider || "email";
+const calBackendFor = (session) => CAL_BACKENDS[userProvider(session)] || null;
+
+const PENDING_CAL_KEY = "bq_pending_calendar";
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// Turn a task + the modal's choices into a serializable, backend-agnostic event.
+// All timed fields are ISO strings so the whole thing survives a sessionStorage
+// round-trip across the OAuth consent redirect.
+function buildEvent(task, opts) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const lines = [];
+  if (task.notes) lines.push(task.notes);
+  lines.push(`Category: ${task.category} · priority score ${calcScore(task, DEFAULT_WEIGHTS)}/100`);
+  lines.push("Scheduled from BrainQueue");
+  const description = lines.join("\n");
+
+  if (opts.allDay) {
+    const start = new Date(`${opts.date}T00:00:00`);
+    const end = new Date(start.getTime() + 24 * 3600 * 1000); // exclusive end = next day
+    return {
+      summary: task.title, description, allDay: true, timeZone: tz,
+      startDate: ymd(start), endDate: ymd(end), reminders: opts.reminders,
+    };
+  }
+  const start = new Date(`${opts.date}T${opts.time}:00`);
+  const end = new Date(start.getTime() + opts.durationMin * 60000);
+  return {
+    summary: task.title, description, allDay: false, timeZone: tz,
+    start: start.toISOString(), end: end.toISOString(), reminders: opts.reminders,
+  };
+}
+
+// 401/403 ⇒ token missing the calendar scope (or expired) ⇒ re-consent.
+class CalAuthError extends Error {}
+
+async function googleInsert(token, ev) {
+  const body = ev.allDay
+    ? { summary: ev.summary, description: ev.description, start: { date: ev.startDate }, end: { date: ev.endDate } }
+    : { summary: ev.summary, description: ev.description,
+        start: { dateTime: ev.start, timeZone: ev.timeZone },
+        end: { dateTime: ev.end, timeZone: ev.timeZone } };
+  body.reminders = { useDefault: false, overrides: ev.reminders.map(m => ({ method: "popup", minutes: m })) };
+  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401 || res.status === 403) throw new CalAuthError("calendar permission missing");
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error?.message || `Google Calendar error ${res.status}`);
+  return res.json();
+}
+
+async function microsoftInsert(token, ev) {
+  // Graph wants local date-times (no offset) paired with an IANA timeZone.
+  const noZ = (iso) => new Date(iso).toLocaleString("sv-SE").replace(" ", "T"); // "YYYY-MM-DDTHH:mm:ss"
+  const body = ev.allDay
+    ? { subject: ev.summary, body: { contentType: "text", content: ev.description }, isAllDay: true,
+        start: { dateTime: `${ev.startDate}T00:00:00`, timeZone: ev.timeZone },
+        end: { dateTime: `${ev.endDate}T00:00:00`, timeZone: ev.timeZone } }
+    : { subject: ev.summary, body: { contentType: "text", content: ev.description },
+        start: { dateTime: noZ(ev.start), timeZone: ev.timeZone },
+        end: { dateTime: noZ(ev.end), timeZone: ev.timeZone } };
+  if (ev.reminders.length) { body.isReminderOn = true; body.reminderMinutesBeforeStart = Math.min(...ev.reminders); }
+  const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401 || res.status === 403) throw new CalAuthError("calendar permission missing");
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error?.message || `Outlook error ${res.status}`);
+  return res.json();
+}
+
+function insertViaProvider(provider, token, ev) {
+  if (provider === "google") return googleInsert(token, ev);
+  if (provider === "azure") return microsoftInsert(token, ev);
+  return Promise.reject(new Error("No one-click calendar for this provider"));
+}
+
+// Redirect to the provider's consent screen asking for the calendar scope on top
+// of the already-granted sign-in scopes. The pending event is stashed first so we
+// can finish the insert when the browser comes back.
+async function requestCalendarConsent(provider, ev, taskId) {
+  const sb = getSupabase();
+  const backend = CAL_BACKENDS[provider];
+  if (!sb || !backend) throw new Error("Calendar not available for this account.");
+  sessionStorage.setItem(PENDING_CAL_KEY, JSON.stringify({ provider, ev, taskId }));
+  const { error } = await sb.auth.signInWithOAuth({
+    provider,
+    options: { scopes: backend.scope, redirectTo: window.location.origin, queryParams: backend.queryParams },
+  });
+  if (error) { sessionStorage.removeItem(PENDING_CAL_KEY); throw error; }
+}
+
+// Did the provider redirect back with a denial instead of a grant?
+function consentWasDenied() {
+  const blob = window.location.hash + " " + window.location.search;
+  return /error=access_denied|error=consent_required|error_description/i.test(blob);
+}
+function clearAuthParamsFromUrl() {
+  window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+}
+
+// ─── .ics generation (universal, zero-permission) ──────────────────────────────
+const icsEscape = (s = "") => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+const icsUTC = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); // YYYYMMDDTHHMMSSZ
+
+function buildICS(ev) {
+  const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@brainqueue`;
+  const stamp = icsUTC(new Date().toISOString());
+  const lines = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BrainQueue//EN", "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT", `UID:${uid}`, `DTSTAMP:${stamp}`,
+  ];
+  if (ev.allDay) {
+    lines.push(`DTSTART;VALUE=DATE:${ev.startDate.replace(/-/g, "")}`);
+    lines.push(`DTEND;VALUE=DATE:${ev.endDate.replace(/-/g, "")}`);
+  } else {
+    lines.push(`DTSTART:${icsUTC(ev.start)}`, `DTEND:${icsUTC(ev.end)}`);
+  }
+  lines.push(`SUMMARY:${icsEscape(ev.summary)}`, `DESCRIPTION:${icsEscape(ev.description)}`);
+  ev.reminders.forEach(m => {
+    lines.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Reminder", `TRIGGER:-PT${m}M`, "END:VALARM");
+  });
+  lines.push("END:VEVENT", "END:VCALENDAR");
+  return lines.join("\r\n");
+}
+
+function downloadICS(ev) {
+  const blob = new Blob([buildICS(ev)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(ev.summary || "task").replace(/[^a-z0-9]+/gi, "-").slice(0, 40).toLowerCase()}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // Merge: for each task, keep whichever version has the latest updated_at/addedAt
@@ -468,7 +736,7 @@ function ScoreRing({ score }) {
   );
 }
 
-function TaskCard({ task, onEdit, onMarkDone, onDelete, weights }) {
+function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weights }) {
   const [hov, hovProps] = useHover();
   const score = calcScore(task, weights);
   const accent = CAT_ACCENT(task.category);
@@ -506,6 +774,10 @@ function TaskCard({ task, onEdit, onMarkDone, onDelete, weights }) {
             style={{ background: "none", border: "none", color: "#3a3a3a", cursor: "pointer", fontSize: "1rem", transition: "color 0.15s, transform 0.15s" }}
             onMouseEnter={e => { e.target.style.color="#6bffb3"; e.target.style.transform="scale(1.2)"; }}
             onMouseLeave={e => { e.target.style.color="#3a3a3a"; e.target.style.transform="scale(1)"; }}>✓</button>
+          <button onClick={() => onSchedule(task)} title="Add to calendar"
+            style={{ background: "none", border: "none", color: "#3a3a3a", cursor: "pointer", fontSize: "0.8rem", transition: "color 0.15s, transform 0.15s" }}
+            onMouseEnter={e => { e.target.style.color="#6b9fff"; e.target.style.transform="scale(1.2)"; }}
+            onMouseLeave={e => { e.target.style.color="#3a3a3a"; e.target.style.transform="scale(1)"; }}>📅</button>
           <button onClick={() => onEdit(task)} title="Edit"
             style={{ background: "none", border: "none", color: "#3a3a3a", cursor: "pointer", fontSize: "0.8rem", transition: "color 0.15s" }}
             onMouseEnter={e => e.target.style.color="#aaa"} onMouseLeave={e => e.target.style.color="#3a3a3a"}>✏️</button>
@@ -564,6 +836,153 @@ function GlassSlider({ label, value, onChange, sublabels }) {
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.2rem" }}>
         <span style={{ fontSize: "0.62rem", color: "#333" }}>{sublabels[1]}</span>
         <span style={{ fontSize: "0.62rem", color: "#333" }}>{sublabels[5]}</span>
+      </div>
+    </div>
+  );
+}
+
+// Default the start to the next round hour, and the duration to the task's effort.
+const nextHour = () => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; };
+const EFFORT_DURATION = { 1: 15, 2: 30, 3: 60, 4: 90, 5: 120 }; // minutes
+const REMINDER_CHOICES = [
+  { m: 0, label: "At start" }, { m: 10, label: "10 min" },
+  { m: 60, label: "1 hour" }, { m: 1440, label: "1 day" },
+];
+
+function ScheduleModal({ task, session, onClose, onResult }) {
+  const start0 = nextHour();
+  const [allDay, setAllDay] = useState(false);
+  const [date, setDate] = useState(ymd(start0));
+  const [time, setTime] = useState(`${pad2(start0.getHours())}:${pad2(start0.getMinutes())}`);
+  const [durationMin, setDurationMin] = useState(EFFORT_DURATION[task.effort] || 60);
+  const [reminders, setReminders] = useState([10]);
+  const [busy, setBusy] = useState(null); // "api" | "ics" | null
+  const [error, setError] = useState(null);
+
+  const backend = calBackendFor(session);          // { label, scope… } or null
+  const provider = userProvider(session);
+  const opts = { allDay, date, time, durationMin, reminders };
+
+  const toggleReminder = (m) =>
+    setReminders(r => r.includes(m) ? r.filter(x => x !== m) : [...r, m].sort((a, b) => a - b));
+
+  const onDownloadICS = () => {
+    downloadICS(buildEvent(task, opts));
+    onResult({ type: "success", msg: "Calendar file downloaded — open it to add the event." });
+    onClose();
+  };
+
+  const onAddViaApi = async () => {
+    setBusy("api"); setError(null);
+    const ev = buildEvent(task, opts);
+    const token = session.provider_token;
+    try {
+      if (token) {
+        await insertViaProvider(provider, token, ev);
+        onResult({ type: "success", msg: `Added to ${backend.label} ✓` });
+        onClose();
+        return;
+      }
+      // No usable token in this session → go get consent (full-page redirect).
+      await requestCalendarConsent(provider, ev, task.id);
+      // browser redirects away; nothing after this runs
+    } catch (e) {
+      if (e instanceof CalAuthError) {
+        // Had a token but it lacked the scope — ask for consent.
+        try { await requestCalendarConsent(provider, ev, task.id); return; }
+        catch (e2) { setError(e2.message); }
+      } else {
+        setError(e.message);
+      }
+      setBusy(null);
+    }
+  };
+
+  const fieldStyle = { ...glass, borderRadius: "10px", padding: "0.6rem 0.8rem", color: "#e8e8e8", fontSize: "0.82rem", fontFamily: "'DM Mono', monospace", outline: "none", boxSizing: "border-box", colorScheme: "dark" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
+      <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "440px", maxHeight: "90vh", overflow: "auto", padding: "1.8rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.15rem", color: "#fff", margin: 0 }}>📅 Add to calendar</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
+        </div>
+        <p style={{ fontSize: "0.78rem", color: "#888", margin: "0 0 1.3rem", lineHeight: 1.4 }}>{task.title}</p>
+
+        {/* All-day toggle */}
+        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", cursor: "pointer" }}>
+          <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} style={{ accentColor: "#e8ff5a", width: "16px", height: "16px" }} />
+          <span style={{ fontSize: "0.8rem", color: "#bbb", fontFamily: "'Syne', sans-serif" }}>All-day event</span>
+        </label>
+
+        {/* Date + (time / duration) */}
+        <div style={{ display: "grid", gridTemplateColumns: allDay ? "1fr" : "1fr 1fr", gap: "0.6rem", marginBottom: "1.1rem" }}>
+          <div>
+            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.3rem" }}>DATE</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fieldStyle, width: "100%" }} />
+          </div>
+          {!allDay && (
+            <div>
+              <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.3rem" }}>START</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ ...fieldStyle, width: "100%" }} />
+            </div>
+          )}
+        </div>
+
+        {!allDay && (
+          <div style={{ marginBottom: "1.1rem" }}>
+            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.4rem" }}>DURATION</label>
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+              {[15, 30, 60, 90, 120].map(d => (
+                <button key={d} onClick={() => setDurationMin(d)} style={{
+                  padding: "0.3rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem",
+                  fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                  border: `1px solid ${durationMin === d ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.08)"}`,
+                  background: durationMin === d ? "rgba(232,255,90,0.14)" : "transparent",
+                  color: durationMin === d ? "#e8ff5a" : "#555",
+                }}>{d < 60 ? `${d}m` : `${d / 60}h`.replace(".5h", "h30")}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reminders */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.4rem" }}>REMIND ME</label>
+          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+            {REMINDER_CHOICES.map(({ m, label }) => {
+              const on = reminders.includes(m);
+              return (
+                <button key={m} onClick={() => toggleReminder(m)} style={{
+                  padding: "0.3rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem",
+                  fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                  border: `1px solid ${on ? "rgba(107,159,255,0.6)" : "rgba(255,255,255,0.08)"}`,
+                  background: on ? "rgba(107,159,255,0.14)" : "transparent",
+                  color: on ? "#6b9fff" : "#555",
+                }}>{on ? "✓ " : ""}{label}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {error && <p style={{ color: "#ff6b6b", fontSize: "0.76rem", marginBottom: "0.9rem", textAlign: "center" }}>{error}</p>}
+
+        {/* Actions: one-click insert where the provider supports it, .ics always. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {backend && (
+            <GlassButton onClick={onAddViaApi} accent="#e8ff5a" disabled={!!busy} style={{ width: "100%", padding: "0.85rem" }}>
+              {busy === "api" ? "Connecting…" : `Add to ${backend.label}`}
+            </GlassButton>
+          )}
+          <GlassButton onClick={onDownloadICS} disabled={!!busy} style={{ width: "100%", padding: "0.85rem", ...(backend ? {} : { color: "#e8ff5a" }) }}>
+            ↓ Download .ics {backend ? "(any calendar)" : "(Apple, Outlook, any app)"}
+          </GlassButton>
+        </div>
+        {!backend && (
+          <p style={{ fontSize: "0.68rem", color: "#444", textAlign: "center", marginTop: "0.9rem", lineHeight: 1.5 }}>
+            One-click add is available when you sign in with Google or Microsoft.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -829,60 +1248,66 @@ function ExportButton({ tasks, weights }) {
   return <GlassButton onClick={exportCSV} style={{ padding: "0.6rem 0.9rem", fontSize: "0.75rem" }}>↓ CSV</GlassButton>;
 }
 
-function MainApp() {
-  const [state, setState] = useState(() => loadState());
+function MainApp({ session }) {
+  const userId = session.user.id;
+  setActiveUser(userId); // ensure row helpers stamp user_id before any task write
+
+  const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, apiKey, weights = DEFAULT_WEIGHTS } = state;
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
-  const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(n); return n; });
+  const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(userId, n); return n; });
 
-  // On mount: fetch remote tasks, merge with local, then subscribe to realtime changes
+  // On mount: fetch this user's remote tasks, merge with local, then subscribe to
+  // realtime changes scoped to their rows.
   useEffect(() => {
+    setActiveUser(userId);
     const sb = getSupabase();
     if (!sb) return;
 
     setSyncStatus("syncing");
+    const ownFilter = `user_id=eq.${userId}`;
 
     // 1. Initial fetch + merge
-    fetchRemoteTasks().then(remote => {
+    fetchRemoteTasks(userId).then(remote => {
       if (!remote) { setSyncStatus("error"); return; }
       setState(s => {
         const merged = mergeTasks(s.tasks, remote);
         const remoteIds = new Set(remote.map(t => String(t.id)));
         s.tasks.forEach(t => { if (!remoteIds.has(String(t.id))) upsertTask(t); });
         const n = { ...s, tasks: merged };
-        saveState(n);
+        saveState(userId, n);
         return n;
       });
       setSyncStatus("synced");
     });
 
-    // 2. Realtime subscription — listens to INSERT, UPDATE, DELETE from any device
+    // 2. Realtime subscription — INSERT/UPDATE/DELETE for this user, from any device
     const channel = sb
-      .channel("tasks-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tasks" }, ({ new: row }) => {
+      .channel(`tasks-realtime-${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "tasks", filter: ownFilter }, ({ new: row }) => {
         const task = fromRow(row);
         setState(s => {
           if (s.tasks.find(t => String(t.id) === String(task.id))) return s; // already have it
           const n = { ...s, tasks: [...s.tasks, task] };
-          saveState(n);
+          saveState(userId, n);
           return n;
         });
         setSyncStatus("synced");
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, ({ new: row }) => {
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks", filter: ownFilter }, ({ new: row }) => {
         const task = fromRow(row);
         setState(s => {
           const n = { ...s, tasks: s.tasks.map(t => String(t.id) === String(task.id) ? task : t) };
-          saveState(n);
+          saveState(userId, n);
           return n;
         });
         setSyncStatus("synced");
       })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tasks" }, ({ old: row }) => {
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "tasks", filter: ownFilter }, ({ old: row }) => {
         setState(s => {
           const n = { ...s, tasks: s.tasks.filter(t => String(t.id) !== String(row.id)) };
-          saveState(n);
+          saveState(userId, n);
           return n;
         });
         setSyncStatus("synced");
@@ -892,16 +1317,44 @@ function MainApp() {
         if (status === "CHANNEL_ERROR") { console.error("Realtime error"); setSyncStatus("error"); }
       });
 
-    // Cleanup on unmount
+    // Cleanup on unmount / user switch
     return () => { sb.removeChannel(channel); };
-  }, []);
+  }, [userId]);
 
   const [view, setView] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [showDump, setShowDump] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [scheduleTask, setScheduleTask] = useState(null);
+  const [toast, setToast] = useState(null); // { type: "success" | "error", msg }
   const [filterCat, setFilterCat] = useState("All");
+
+  // After returning from a calendar-consent redirect, finish (or report) the
+  // insert that was stashed before we left. Runs on mount + when the provider
+  // token lands in the session; a ref makes it fire at most once.
+  const calResumeRef = useRef(false);
+  useEffect(() => {
+    if (calResumeRef.current) return;
+    const raw = sessionStorage.getItem(PENDING_CAL_KEY);
+    if (!raw) return;
+    if (consentWasDenied()) {
+      calResumeRef.current = true;
+      sessionStorage.removeItem(PENDING_CAL_KEY);
+      setToast({ type: "error", msg: "Calendar access denied — you can still download the .ics from any task." });
+      clearAuthParamsFromUrl();
+      return;
+    }
+    const token = session.provider_token;
+    if (!token) return; // token not in the session yet — wait for it
+    calResumeRef.current = true;
+    const { provider, ev } = JSON.parse(raw);
+    sessionStorage.removeItem(PENDING_CAL_KEY);
+    insertViaProvider(provider, token, ev)
+      .then(() => setToast({ type: "success", msg: `Added to ${CAL_BACKENDS[provider]?.label || "your calendar"} ✓` }))
+      .catch(e => setToast({ type: "error", msg: `Couldn't add to calendar: ${e.message}` }));
+    clearAuthParamsFromUrl();
+  }, [session.provider_token]);
 
   const saveTask = useCallback((t) => {
     update({ tasks: tasks.find(x => x.id === t.id) ? tasks.map(x => x.id === t.id ? t : x) : [...tasks, t] });
@@ -996,8 +1449,9 @@ function MainApp() {
                 </p>
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                <UserChip session={session} />
                 <ExportButton tasks={tasks} weights={weights} />
-                <GlassButton onClick={() => { clearSession(); window.location.reload(); }} style={{ padding: "0.6rem 0.8rem", fontSize: "0.75rem" }}>⏻</GlassButton>
+                <GlassButton onClick={() => signOut()} title="Sign out" style={{ padding: "0.6rem 0.8rem", fontSize: "0.75rem" }}>⏻</GlassButton>
                 <GlassButton onClick={() => setShowSettings(true)} style={{ padding: "0.6rem 0.8rem" }}>⚙️</GlassButton>
                 <GlassButton onClick={() => setShowDump(true)}>Brain Dump</GlassButton>
                 <GlassButton onClick={() => setShowAdd(true)} accent="#e8ff5a">+ Add</GlassButton>
@@ -1053,7 +1507,7 @@ function MainApp() {
                 <div key={t.id} className="task-enter" style={{ animationDelay: `${i * 0.04}s` }}>
                   {t.done
                     ? <DoneCard task={t} onDelete={deleteTask} onRestore={restore} />
-                    : <TaskCard task={t} onEdit={setEditTask} onMarkDone={markDone} onDelete={deleteTask} weights={weights} />
+                    : <TaskCard task={t} onEdit={setEditTask} onMarkDone={markDone} onDelete={deleteTask} onSchedule={setScheduleTask} weights={weights} />
                   }
                 </div>
               ))}
@@ -1065,12 +1519,62 @@ function MainApp() {
       {showSettings && <SettingsModal apiKey={apiKey} weights={weights} onSave={(k, w) => update({ apiKey: k, weights: w })} onClose={() => setShowSettings(false)} />}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} apiKey={apiKey} weights={weights} />}
       {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} />}
+      {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
+      {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }
 
+// Brief auto-dismissing notice for calendar add results (and the post-redirect resume).
+function Toast({ toast, onDone }) {
+  useEffect(() => { const id = setTimeout(onDone, 4500); return () => clearTimeout(id); }, [toast, onDone]);
+  const ok = toast.type === "success";
+  return (
+    <div onClick={onDone} style={{
+      position: "fixed", bottom: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 200,
+      ...glassStrong, borderRadius: "14px", padding: "0.85rem 1.2rem", maxWidth: "90vw", cursor: "pointer",
+      border: `1px solid ${ok ? "rgba(107,255,179,0.4)" : "rgba(255,107,107,0.4)"}`,
+      display: "flex", alignItems: "center", gap: "0.6rem",
+      animation: "fadeUp 0.3s cubic-bezier(0.34,1.2,0.64,1) both",
+    }}>
+      <span style={{ fontSize: "1rem" }}>{ok ? "✓" : "⚠️"}</span>
+      <span style={{ fontSize: "0.8rem", color: ok ? "#cfe" : "#fcc", fontFamily: "'DM Mono', monospace" }}>{toast.msg}</span>
+    </div>
+  );
+}
+
+function UserChip({ session }) {
+  const u = session.user;
+  const avatar = u.user_metadata?.avatar_url || u.user_metadata?.picture;
+  const name = u.user_metadata?.full_name || u.user_metadata?.name || u.email || "Account";
+  return (
+    <div title={u.email || name} style={{
+      ...glass, display: "flex", alignItems: "center", gap: "0.4rem",
+      borderRadius: "20px", padding: "0.25rem 0.7rem 0.25rem 0.3rem", maxWidth: "180px",
+    }}>
+      {avatar
+        ? <img src={avatar} alt="" referrerPolicy="no-referrer" style={{ width: "22px", height: "22px", borderRadius: "50%" }} />
+        : <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: "rgba(232,255,90,0.18)", color: "#e8ff5a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem", fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>{(name[0] || "?").toUpperCase()}</span>}
+      <span style={{ fontSize: "0.72rem", color: "#aaa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+    </div>
+  );
+}
+
 export default function App() {
-  const [authed, setAuthed] = useState(() => loadSession());
-  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
-  return <MainApp />;
+  // undefined = still loading the session; null = no Supabase / signed out.
+  const [session, setSession] = useState(() => (getSupabase() ? undefined : null));
+
+  useEffect(() => {
+    const sb = getSupabase();
+    if (!sb) return;
+    let active = true;
+    sb.auth.getSession().then(({ data }) => { if (active) setSession(data.session); });
+    const { data: sub } = sb.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => { active = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  if (session === undefined) return <Splash />;
+  if (!session) return <LoginScreen />;
+  // key on user id so switching accounts fully remounts with fresh per-user state
+  return <MainApp key={session.user.id} session={session} />;
 }
