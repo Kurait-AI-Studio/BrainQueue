@@ -26,5 +26,8 @@ dist-ssr
 node_modules
 exports_csv
 
+# personal task exports (root-level CSVs)
+/*.csv
+
 # eval run artifacts (keep the harness + config, ignore generated results)
 eval/results/
