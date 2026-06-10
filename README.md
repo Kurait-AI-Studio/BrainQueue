@@ -56,11 +56,51 @@ OpenAI-compatible shape, so the prompt/schema carry over unchanged.
 
 ## Dev
 
+### Run the app locally (do this before pushing)
+
 ```bash
-npm install
-npm run dev      # vite dev server
-npm run build    # production build
+npm install            # first time only
+npm run dev            # starts Vite at http://localhost:5173
+npm run dev:fresh      # same, but opens a brand-new browser profile (see below)
 ```
 
-Requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` for sync
-(the app runs local-only without them).
+Open **http://localhost:5173** in your browser. Hot-reload is on, so saved edits
+appear instantly.
+
+**Testing as a first-time user.** Your Supabase session and cached tasks live in
+the browser's `localStorage`, so a normal reload keeps you logged in. To simulate
+a brand-new user every time, run **`npm run dev:fresh`** — it starts Vite and
+opens the app in a throwaway browser profile (empty storage = no session, no
+cached tasks). Just close that window when done; the temp profile is discarded.
+Stop everything with Ctrl+C.
+
+Sanity-check a production build too before pushing:
+
+```bash
+npm run build          # must succeed before you push
+npm run preview        # optional: serve the built bundle to verify it
+```
+
+Requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env` for sync and
+login (without them the login screen shows a "Supabase isn't configured" notice).
+Make sure `http://localhost:5173` is in your Supabase **Authentication → URL
+Configuration → Redirect URLs**, or the OAuth round-trip is rejected.
+
+### Logging in
+
+Auth is handled by Supabase in the browser, so logging in is a UI action, not a
+terminal command. On the login screen:
+
+- **Continue with Google / GitHub** — one click, redirects to the provider and back.
+- **Magic link** — type your email, click *Send magic link*, then open the link
+  on this device.
+
+### Logging out
+
+- Click the **⏻** button in the top-right header — that calls `supabase.auth.signOut()`.
+- To fully reset the local session while testing (e.g. to switch accounts), run
+  this in the browser DevTools console, then reload:
+
+  ```js
+  localStorage.clear(); location.reload();
+  ```
