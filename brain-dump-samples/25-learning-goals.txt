@@ -1,0 +1,8 @@
+Things I want to learn / make progress on:
+- Finish the linear algebra course on Khan Academy
+- Read one research paper a week
+- Build a small side project in Rust
+- Practice system design interviews
+- Learn keyboard shortcuts for my editor
+- Take notes on the book "Thinking Fast and Slow"
+- Get comfortable with Docker and containers

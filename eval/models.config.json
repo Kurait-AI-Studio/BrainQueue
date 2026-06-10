@@ -1,0 +1,123 @@
+{
+  "samplesDir": "../brain-dump-samples",
+  "concurrency": 4,
+  "models": [
+    {
+      "id": "opus-4-8",
+      "label": "Claude Opus 4.8",
+      "provider": "anthropic",
+      "model": "claude-opus-4-8",
+      "price": { "in": 5, "out": 25 },
+      "enabled": true,
+      "_note": "Quality ceiling. Overkill for this task, but a useful 'best possible' baseline."
+    },
+    {
+      "id": "sonnet-4-6",
+      "label": "Claude Sonnet 4.6",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "price": { "in": 3, "out": 15 },
+      "enabled": true,
+      "_note": "What the app ships with today."
+    },
+    {
+      "id": "haiku-4-5",
+      "label": "Claude Haiku 4.5",
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5",
+      "price": { "in": 1, "out": 5 },
+      "enabled": true,
+      "_note": "Cheapest Claude. Likely the sweet spot for this classification task."
+    },
+
+    {
+      "id": "gpt-4o",
+      "label": "GPT-4o",
+      "provider": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "gpt-4o",
+      "jsonSchema": true,
+      "temperature": 0,
+      "price": { "in": 2.5, "out": 10 },
+      "enabled": true
+    },
+    {
+      "id": "gpt-4o-mini",
+      "label": "GPT-4o mini",
+      "provider": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "gpt-4o-mini",
+      "jsonSchema": true,
+      "temperature": 0,
+      "price": { "in": 0.15, "out": 0.6 },
+      "enabled": true,
+      "_note": "Cheap 2024-era OpenAI model. Good 'is an old/cheap model enough' datapoint."
+    },
+    {
+      "id": "gpt-4-1-mini",
+      "label": "GPT-4.1 mini",
+      "provider": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "gpt-4.1-mini",
+      "jsonSchema": true,
+      "temperature": 0,
+      "price": { "in": 0.4, "out": 1.6 },
+      "enabled": true
+    },
+    {
+      "id": "gpt-4-1-nano",
+      "label": "GPT-4.1 nano",
+      "provider": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY",
+      "model": "gpt-4.1-nano",
+      "jsonSchema": true,
+      "temperature": 0,
+      "price": { "in": 0.1, "out": 0.4 },
+      "enabled": true,
+      "_note": "Cheapest OpenAI tier — the near-free candidate."
+    },
+
+    {
+      "id": "llama-3.3-70b",
+      "label": "Llama 3.3 70B Instruct",
+      "provider": "openai",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "model": "meta-llama/llama-3.3-70b-instruct",
+      "jsonSchema": true,
+      "temperature": 0,
+      "price": { "in": 0.12, "out": 0.3 },
+      "enabled": false,
+      "_note": "Open-source via OpenRouter. Set OPENROUTER_API_KEY and flip enabled:true. Prices approximate."
+    },
+    {
+      "id": "qwen-2.5-72b",
+      "label": "Qwen 2.5 72B Instruct",
+      "provider": "openai",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "model": "qwen/qwen-2.5-72b-instruct",
+      "jsonSchema": true,
+      "temperature": 0,
+      "price": { "in": 0.12, "out": 0.39 },
+      "enabled": false
+    },
+    {
+      "id": "ollama-local",
+      "label": "Local Ollama (free)",
+      "provider": "openai",
+      "baseUrl": "http://localhost:11434/v1",
+      "apiKeyEnv": "OLLAMA_API_KEY",
+      "model": "llama3.1:8b",
+      "jsonSchema": false,
+      "temperature": 0,
+      "price": { "in": 0, "out": 0 },
+      "enabled": false,
+      "_note": "Fully free, runs locally. `ollama pull llama3.1:8b` first. Set OLLAMA_API_KEY=ollama."
+    }
+  ]
+}

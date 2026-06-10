@@ -1,0 +1,8 @@
+[To Do] Design new landing page hero
+[To Do] Set up Stripe webhook for refunds
+[Doing] Write blog post on the launch
+[To Do] A/B test the pricing page
+[Done] Configure the staging environment
+[To Do] Reach out to 5 beta users for feedback
+[To Do] Record the demo video
+[Blocked] Get legal sign-off on the ToS

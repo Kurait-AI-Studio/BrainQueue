@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BrainQueue · Blind Model Rating</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --acc: #e8ff5a; --bg: #060610; }
+  body { background: var(--bg); color: #e0e0e0; font-family: 'DM Mono', monospace; min-height: 100vh; }
+  .glass { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06); backdrop-filter: blur(20px); }
+  h1,h2,h3 { font-family: 'Syne', sans-serif; letter-spacing: -0.02em; }
+  a { color: #6b9fff; cursor: pointer; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
+  .brand { font-weight: 800; font-size: 1.5rem; }
+  .brand .q { color: var(--acc); text-shadow: 0 0 20px rgba(232,255,90,0.4); }
+  .muted { color: #555; font-size: 0.78rem; }
+  .btn { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.82rem; border-radius: 12px; padding: 0.6rem 1.1rem; cursor: pointer; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #ddd; transition: all .15s; }
+  .btn:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+  .btn.acc { background: rgba(232,255,90,0.12); border-color: rgba(232,255,90,0.4); color: var(--acc); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+  .row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+  .sp { flex: 1; }
+  /* progress */
+  .bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin: .8rem 0; }
+  .bar > div { height: 100%; background: var(--acc); box-shadow: 0 0 10px var(--acc); transition: width .3s; }
+  /* dump */
+  .dump { border-radius: 12px; padding: .9rem 1.1rem; white-space: pre-wrap; font-size: .78rem; color: #9a9a9a; max-height: 8.5rem; overflow: auto; line-height: 1.55; }
+  /* card grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .9rem; margin-top: 1rem; }
+  .card { border-radius: 16px; padding: 1rem 1.1rem; display: flex; flex-direction: column; }
+  .card.best { border-color: rgba(232,255,90,0.5); box-shadow: 0 0 18px rgba(232,255,90,0.12), inset 0 1px 0 rgba(255,255,255,0.08); }
+  .code { font-family: 'Syne', sans-serif; font-weight: 800; font-size: .95rem; color: #cdcdcd; }
+  .tasks { list-style: none; margin: .6rem 0; display: flex; flex-direction: column; gap: .35rem; max-height: 16rem; overflow: auto; }
+  .task { font-size: .76rem; color: #cfcfcf; display: flex; gap: .4rem; align-items: baseline; }
+  .chip { font-size: .58rem; padding: 1px 6px; border-radius: 10px; font-family: 'Syne', sans-serif; font-weight: 700; white-space: nowrap; }
+  .sc { color: #555; font-size: .62rem; white-space: nowrap; }
+  .ntasks { color: #444; font-size: .64rem; }
+  /* metrics */
+  .metric { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; }
+  .mlabel { font-size: .66rem; color: #888; width: 78px; font-family: 'Syne', sans-serif; font-weight: 700; cursor: help; }
+  .stars { display: flex; gap: 3px; }
+  .star { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.18); cursor: pointer; transition: all .12s; }
+  .star.on { background: var(--acc); border-color: var(--acc); box-shadow: 0 0 8px rgba(232,255,90,0.5); }
+  .note { width: 100%; margin-top: .5rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: #aaa; font-family: 'DM Mono', monospace; font-size: .72rem; padding: .4rem .6rem; outline: none; resize: vertical; min-height: 30px; }
+  .bestbtn { margin-top: .55rem; font-size: .66rem; padding: .35rem .6rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: none; color: #777; cursor: pointer; font-family: 'Syne', sans-serif; font-weight: 700; }
+  .bestbtn.on { color: var(--acc); border-color: rgba(232,255,90,0.5); background: rgba(232,255,90,0.1); }
+  table { width: 100%; border-collapse: collapse; font-size: .76rem; margin-top: 1rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  th { font-family: 'Syne', sans-serif; color: #888; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display:inline-block; font-size:.62rem; padding:1px 7px; border-radius:10px; background: rgba(232,255,90,0.12); color: var(--acc); }
+  .toast { position: fixed; bottom: 1rem; right: 1rem; font-size: .72rem; color: #6bffb3; opacity: 0; transition: opacity .3s; }
+  .toast.show { opacity: 1; }
+  select { background: #101018; color: #ddd; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: .4rem .6rem; font-family: 'DM Mono', monospace; font-size: .78rem; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const CATCOLORS = { Health:"#ff6b6b", Work:"#6b9fff", Admin:"#ffb347", Social:"#6bffb3", Finance:"#c47bff", Learning:"#5de8ff", Personal:"#ffaa5e" };
+const $ = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstChild; };
+const api = (u, opt) => fetch(u, opt).then(r => r.json());
+let S = null;       // session payload (anonymized)
+let idx = 0;        // current sample index
+const toast = (msg) => { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 1400); };
+
+// ── Landing ─────────────────────────────────────────────────────────────────
+async function home() {
+  const runs = await api("/api/runs");
+  const past = await api("/api/sessions");
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  app.append($(`<div class="row"><div class="brand">Brain<span class="q">Queue</span> · Blind Rating</div></div>`));
+  app.append($(`<p class="muted" style="margin:.4rem 0 1.4rem">Rate model outputs without knowing which model made them. Pick an eval run to start.</p>`));
+
+  const box = $(`<div class="glass" style="border-radius:16px;padding:1.2rem"></div>`);
+  if (!runs.length) box.append($(`<p class="muted">No eval runs found. Run <code>node eval/run-eval.mjs</code> first.</p>`));
+  runs.forEach(r => {
+    const row = $(`<div class="row" style="padding:.5rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+      <div><b>${r.id}</b><div class="muted">${r.models} models × ${r.samples} samples</div></div><div class="sp"></div></div>`);
+    const b = $(`<button class="btn acc">Rate this run →</button>`);
+    b.onclick = () => start(r.id);
+    row.append(b); box.append(row);
+  });
+  app.append(box);
+
+  if (past.length) {
+    const p = $(`<div style="margin-top:1.6rem"><h3 style="font-size:.9rem;color:#aaa;margin-bottom:.5rem">Saved ratings</h3></div>`);
+    past.slice(0, 12).forEach(f => p.append($(`<div class="muted" style="padding:.2rem 0">📄 eval/ratings/${f.file}</div>`)));
+    app.append(p);
+  }
+}
+
+async function start(runId) {
+  S = await api("/api/session/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ runId }) });
+  idx = 0;
+  render();
+}
+
+// ── Rating view ─────────────────────────────────────────────────────────────
+function rated(sample) {
+  const r = S.ratings[sample] || {};
+  // a sample counts as "done" when every output card has all metrics scored
+  const out = S.samples.find(s => s.name === sample).outputs;
+  return out.every(o => { const m = r[o.code]?.metrics || {}; return S.metrics.every(mk => m[mk.key]); });
+}
+
+function saveRating(sample, code) {
+  const r = S.ratings[sample][code];
+  api(`/api/session/${S.sessionId}/rating`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sample, code, metrics: r.metrics, note: r.note }) });
+  toast("saved");
+}
+function saveBest(sample, code) {
+  api(`/api/session/${S.sessionId}/rating`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sample, best: code }) });
+  toast("saved");
+}
+
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  const total = S.samples.length;
+  const doneCount = S.samples.filter(s => rated(s.name)).length;
+  const sm = S.samples[idx];
+  S.ratings[sm.name] = S.ratings[sm.name] || {};
+
+  // header
+  const head = $(`<div class="row"><div class="brand">Brain<span class="q">Queue</span> · Rating</div><div class="sp"></div></div>`);
+  const finishBtn = $(`<button class="btn acc">Finish & reveal →</button>`);
+  finishBtn.onclick = finish;
+  const homeBtn = $(`<button class="btn">⟵ Runs</button>`); homeBtn.onclick = home;
+  head.append(homeBtn, finishBtn);
+  app.append(head);
+
+  app.append($(`<div class="bar"><div style="width:${Math.round(doneCount/total*100)}%"></div></div>`));
+  const nav = $(`<div class="row"><span class="muted">Sample ${idx+1} / ${total} · ${doneCount} fully rated</span><div class="sp"></div></div>`);
+  const prev = $(`<button class="btn" ${idx===0?"disabled":""}>← Prev</button>`); prev.onclick = () => { if(idx>0){idx--;render();} };
+  const next = $(`<button class="btn" ${idx===total-1?"disabled":""}>Next →</button>`); next.onclick = () => { if(idx<total-1){idx++;render();} };
+  nav.append(prev, next);
+  app.append(nav);
+
+  app.append($(`<h2 style="font-size:1.05rem;margin:.8rem 0 .3rem">${sm.name} ${rated(sm.name)?'<span class="pill">rated</span>':''}</h2>`));
+  app.append($(`<div class="glass dump">${escapeHtml(sm.dump)}</div>`));
+
+  // cards
+  const grid = $(`<div class="grid"></div>`);
+  sm.outputs.forEach(o => grid.append(card(sm.name, o)));
+  app.append(grid);
+}
+
+function card(sample, o) {
+  const r = (S.ratings[sample][o.code] = S.ratings[sample][o.code] || { metrics: {}, note: "" });
+  const isBest = S.best[sample] === o.code;
+  const el = $(`<div class="glass card ${isBest?'best':''}"></div>`);
+  el.append($(`<div class="row"><span class="code">${o.code}</span><div class="sp"></div><span class="ntasks">${o.ok ? o.tasks.length + " tasks" : "FAILED"}</span></div>`));
+
+  if (!o.ok) { el.append($(`<p class="muted" style="color:#ef4444;margin-top:.4rem">${escapeHtml(o.error||"error")}</p>`)); }
+  else {
+    const ul = $(`<ul class="tasks"></ul>`);
+    o.tasks.forEach(t => {
+      const c = CATCOLORS[t.category] || "#aaa";
+      ul.append($(`<li class="task"><span style="flex:1">${escapeHtml(t.title)}</span>
+        <span class="chip" style="background:${c}22;color:${c}">${t.category}</span>
+        <span class="sc">U${t.urgency} I${t.importance} E${t.effort} ⚡${t.energy}</span></li>`));
+    });
+    el.append(ul);
+  }
+
+  // metric stars
+  S.metrics.forEach(mk => {
+    const m = $(`<div class="metric"><span class="mlabel" title="${mk.help}">${mk.label}</span></div>`);
+    const stars = $(`<div class="stars"></div>`);
+    for (let v = 1; v <= 5; v++) {
+      const dot = $(`<div class="star ${r.metrics[mk.key]>=v?'on':''}"></div>`);
+      dot.onclick = () => { r.metrics[mk.key] = v; saveRating(sample, o.code); render(); };
+      stars.append(dot);
+    }
+    m.append(stars);
+    el.append(m);
+  });
+
+  const note = $(`<textarea class="note" placeholder="note (optional)">${escapeHtml(r.note||"")}</textarea>`);
+  note.onchange = () => { r.note = note.value; saveRating(sample, o.code); };
+  el.append(note);
+
+  const best = $(`<button class="bestbtn ${isBest?'on':''}">${isBest?'★ best for this sample':'☆ mark best'}</button>`);
+  best.onclick = () => { S.best[sample] = isBest ? null : o.code; saveBest(sample, isBest?null:o.code); render(); };
+  el.append(best);
+  return el;
+}
+
+// ── Finish / reveal ───────────────────────────────────────────────────────────
+async function finish() {
+  const res = await api(`/api/session/${S.sessionId}/finish`, { method: "POST" });
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  app.append($(`<div class="row"><div class="brand">Brain<span class="q">Queue</span> · Results</div><div class="sp"></div></div>`));
+  app.append($(`<p class="muted" style="margin:.5rem 0 1rem">Saved to <b>${res.savedAs}</b> · mapping revealed below.</p>`));
+
+  const t = $(`<table></table>`);
+  t.append($(`<tr><th>Rank</th><th>Model</th>${S.metrics.map(m=>`<th class="num">${m.label}</th>`).join("")}<th class="num">Quality</th><th class="num">Best ×</th><th class="num">Latency</th><th class="num">$/1k</th></tr>`));
+  res.aggregates.ranking.forEach((m, i) => {
+    const cells = S.metrics.map(mk => `<td class="num">${m.metricAvg[mk.key] ?? "—"}</td>`).join("");
+    t.append($(`<tr>
+      <td>${i===0?'🏆 ':''}${i+1}</td>
+      <td><b>${m.label}</b> <span class="muted">${m.modelId}</span></td>
+      ${cells}
+      <td class="num"><b style="color:var(--acc)">${m.quality ?? "—"}</b></td>
+      <td class="num">${m.bestPicks}</td>
+      <td class="num">${m.avgMs}ms</td>
+      <td class="num">$${m.costPer1k.toFixed(m.costPer1k<0.01?5:4)}</td>
+    </tr>`));
+  });
+  app.append(t);
+  app.append($(`<p class="muted" style="margin-top:1rem">Quality = mean of your metric scores (1-5). Weigh it against $/1k and latency to pick the model — then set <code>BRAIN_DUMP_MODEL</code> in <code>src/brainDumpSpec.js</code>.</p>`));
+  const b = $(`<button class="btn" style="margin-top:1rem">⟵ Back to runs</button>`); b.onclick = home; app.append(b);
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+document.addEventListener("keydown", e => {
+  if (!S || !S.samples || document.activeElement.tagName === "TEXTAREA") return;
+  if (e.key === "ArrowLeft" && idx > 0) { idx--; render(); }
+  if (e.key === "ArrowRight" && idx < S.samples.length - 1) { idx++; render(); }
+});
+home();
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+{
+  "sessionId": "94649af3",
+  "runId": "2026-06-09T05-03-27",
+  "createdAt": "2026-06-09T05:15:02.181Z",
+  "blindCodes": [
+    "Model A",
+    "Model B",
+    "Model C",
+    "Model D",
+    "Model E",
+    "Model F",
+    "Model G"
+  ],
+  "metrics": [
+    {
+      "key": "coverage",
+      "label": "Coverage",
+      "help": "Caught every real task — nothing important missed."
+    },
+    {
+      "key": "precision",
+      "label": "Precision",
+      "help": "No junk — dropped headers, dates, done items and noise; invented nothing."
+    },
+    {
+      "key": "titles",
+      "label": "Titles",
+      "help": "Clean imperative wording, translated to English, deduped, list markers stripped."
+    },
+    {
+      "key": "attributes",
+      "label": "Attributes",
+      "help": "Category + urgency / importance / effort / energy are sensible."
+    }
+  ],
+  "mapping": {
+    "Model A": {
+      "modelId": "gpt-4-1-nano",
+      "label": "GPT-4.1 nano"
+    },
+    "Model B": {
+      "modelId": "gpt-4o-mini",
+      "label": "GPT-4o mini"
+    },
+    "Model C": {
+      "modelId": "opus-4-8",
+      "label": "Claude Opus 4.8"
+    },
+    "Model D": {
+      "modelId": "gpt-4-1-mini",
+      "label": "GPT-4.1 mini"
+    },
+    "Model E": {
+      "modelId": "haiku-4-5",
+      "label": "Claude Haiku 4.5"
+    },
+    "Model F": {
+      "modelId": "gpt-4o",
+      "label": "GPT-4o"
+    },
+    "Model G": {
+      "modelId": "sonnet-4-6",
+      "label": "Claude Sonnet 4.6"
+    }
+  },
+  "ratings": {
+    "01-numbered-french-mixed.txt": {
+      "Model B": {
+        "metrics": {
+          "titles": 4
+        },
+        "note": ""
+      },
+      "Model D": {
+        "metrics": {
+          "titles": 4
+        },
+        "note": ""
+      },
+      "Model A": {
+        "metrics": {
+          "titles": 5
+        },
+        "note": ""
+      }
+    }
+  },
+  "best": {}
+}
