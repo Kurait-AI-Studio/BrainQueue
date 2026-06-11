@@ -222,24 +222,110 @@ const CATEGORY_COLORS = {
   Learning: { accent: "#5de8ff", glow: "93,232,255" },
   Personal: { accent: "#ffaa5e", glow: "255,170,94" },
 };
-const CAT_ACCENT = (cat) => CATEGORY_COLORS[cat]?.accent || "#aaa";
+// Custom categories get a stable colour derived from their name (hash → palette).
+const CAT_PALETTE = ["#ff6b6b","#6b9fff","#ffb347","#6bffb3","#c47bff","#5de8ff","#ffaa5e","#e8ff5a","#ff8fd0","#7cffb2","#ff7a5c","#a78bff"];
+const hashStr = (s = "") => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+const CAT_ACCENT = (cat) => CATEGORY_COLORS[cat]?.accent || CAT_PALETTE[hashStr(cat) % CAT_PALETTE.length];
+const hexToRgb = (hex) => { const n = parseInt(hex.replace("#", ""), 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; };
+const CAT_GLOW = (cat) => CATEGORY_COLORS[cat]?.glow || hexToRgb(CAT_ACCENT(cat));
 
 const ENERGY_LABELS = { 1: "Zombie mode", 2: "Low", 3: "Normal", 4: "Focused", 5: "Peak" };
+const PLEASURE_LABELS = { 1: "😣 Dread", 2: "😕 Meh", 3: "😐 Neutral", 4: "🙂 Enjoy", 5: "😍 Love it" };
 const EFFORT_LABELS = { 1: "2 min", 2: "15 min", 3: "1 hour", 4: "Half day", 5: "Multi-day" };
-const DEFAULT_WEIGHTS = { urgency: 35, importance: 35, effort: 20, energy: 10 };
+const DEFAULT_WEIGHTS = { urgency: 30, importance: 30, effort: 15, energy: 10, pleasure: 15 };
 
 function calcScore(task, w = DEFAULT_WEIGHTS) {
-  const total = w.urgency + w.importance + w.effort + w.energy || 100;
+  const wp = w.pleasure ?? 0;
+  const total = w.urgency + w.importance + w.effort + w.energy + wp || 100;
   return Math.round(
     (task.urgency * (w.urgency / total) +
       task.importance * (w.importance / total) +
       (6 - task.effort) * (w.effort / total) +
-      (6 - task.energy) * (w.energy / total)) * 20
+      (6 - task.energy) * (w.energy / total) +
+      (task.pleasure ?? 3) * (wp / total)) * 20
   );
 }
 function getUrgencyLabel(u) {
   if (u >= 5) return "🔴 Today"; if (u >= 4) return "🟠 This week";
   if (u >= 3) return "🟡 This month"; return "⚪ Someday";
+}
+
+// ─── Categories: multi + custom ──────────────────────────────────────────────
+// A task's categories (array). Falls back to the legacy single `category` field
+// so tasks created before multi-category still work.
+const taskCats = (t) => (t.categories?.length ? t.categories : (t.category ? [t.category] : []));
+const allCategories = (custom = []) => [...CATEGORIES, ...custom.filter(c => !CATEGORIES.includes(c))];
+
+// ─── Gamification: XP + levels ───────────────────────────────────────────────
+// XP rewards harder, higher-stakes tasks (urgency/importance/effort/energy) and
+// gives an on-time bonus when a task is finished within the window its urgency
+// implies — so "time taken" matters too.
+const URGENCY_TARGET_HRS = { 1: 336, 2: 168, 3: 72, 4: 24, 5: 8 };
+function taskXP(task) {
+  const diff = (task.urgency || 0) + (task.importance || 0) + (task.effort || 0) + (task.energy || 0); // 4..20
+  let xp = 10 + diff * 4;
+  if (task.doneAt && task.addedAt) {
+    const hrs = (new Date(task.doneAt) - new Date(task.addedAt)) / 3.6e6;
+    if (hrs <= (URGENCY_TARGET_HRS[task.urgency] ?? 72)) xp += 15; // on-time bonus
+  }
+  return Math.round(xp);
+}
+const totalXP = (tasks) => tasks.filter(t => t.done).reduce((s, t) => s + taskXP(t), 0);
+
+const LEVEL_TITLES = ["Sprout", "Doer", "Organizer", "Achiever", "Strategist", "Operator", "Machine", "Virtuoso", "Legend"];
+function levelInfo(xp) {
+  // Deliberately steep: ~a week of solid days per early level, harder after.
+  let level = 1, need = 300, acc = 0;
+  while (xp >= acc + need) { acc += need; level++; need = Math.round(need * 1.5); }
+  const into = xp - acc;
+  return { level, into, need, pct: Math.round((into / need) * 100), title: LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] };
+}
+
+// ─── Analytics: completions over time ────────────────────────────────────────
+// Returns buckets [{ label, count, xp }] (oldest → newest) for the chosen period,
+// derived entirely from each done task's doneAt — no extra storage needed.
+function doneSeries(tasks, period) {
+  const done = tasks.filter(t => t.done && t.doneAt).map(t => ({ d: new Date(t.doneAt), xp: taskXP(t) }));
+  const now = new Date();
+  const sod = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const bucket = (from, to, label, full) => {
+    const hits = done.filter(x => x.d >= from && x.d < to);
+    return { label, full, count: hits.length, xp: hits.reduce((s, h) => s + h.xp, 0) };
+  };
+  const out = [];
+  if (period === "week") {
+    // Current calendar week, Monday → Sunday, one bar per day.
+    const today = sod(now);
+    const dow = (today.getDay() + 6) % 7; // 0 = Monday
+    const monday = new Date(today); monday.setDate(today.getDate() - dow);
+    const wd = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    for (let i = 0; i < 7; i++) {
+      const from = new Date(monday); from.setDate(monday.getDate() + i);
+      const to = new Date(from); to.setDate(from.getDate() + 1);
+      out.push(bucket(from, to, wd[i], from.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })));
+    }
+  } else {
+    // Current month, one bar per day (1 … last day).
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    for (let i = 0; i < days; i++) {
+      const from = new Date(first); from.setDate(first.getDate() + i);
+      const to = new Date(from); to.setDate(from.getDate() + 1);
+      out.push(bucket(from, to, String(i + 1), from.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })));
+    }
+  }
+  return out;
+}
+const countDoneBetween = (tasks, from, to) => tasks.filter(t => t.done && t.doneAt && new Date(t.doneAt) >= from && new Date(t.doneAt) < to).length;
+function todayScore(tasks) { const s = new Date(); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setDate(s.getDate() + 1); return countDoneBetween(tasks, s, e); }
+function weekScore(tasks) { const t = new Date(); t.setHours(0, 0, 0, 0); const dow = (t.getDay() + 6) % 7; const m = new Date(t); m.setDate(t.getDate() - dow); const e = new Date(m); e.setDate(m.getDate() + 7); return countDoneBetween(tasks, m, e); }
+
+// ─── Recurrence ──────────────────────────────────────────────────────────────
+const RECURRENCE_LABELS = { none: "One-time", daily: "Daily", weekly: "Weekly", monthly: "Monthly" };
+const RRULE = { daily: "RRULE:FREQ=DAILY", weekly: "RRULE:FREQ=WEEKLY", monthly: "RRULE:FREQ=MONTHLY" };
+// When a recurring task is completed, spawn its next (not-done) occurrence.
+function nextOccurrence(task) {
+  return { ...task, id: Date.now() + Math.floor(Math.random() * 1000), done: false, doneAt: null, addedAt: new Date().toISOString() };
 }
 
 function formatDate(iso) {
@@ -302,11 +388,14 @@ const toRow = (t) => ({
   id: String(t.id),
   user_id: _userId,
   title: t.title,
-  category: t.category,
+  category: taskCats(t)[0] || null,   // legacy single field = primary category
+  categories: taskCats(t),
+  recurrence: t.recurrence || "none",
   urgency: t.urgency,
   importance: t.importance,
   effort: t.effort,
   energy: t.energy,
+  pleasure: t.pleasure ?? 3,
   notes: t.notes || "",
   done: t.done || false,
   added_at: t.addedAt || new Date().toISOString(),
@@ -317,10 +406,13 @@ const fromRow = (r) => ({
   id: r.id,
   title: r.title,
   category: r.category,
+  categories: r.categories?.length ? r.categories : (r.category ? [r.category] : []),
+  recurrence: r.recurrence || "none",
   urgency: r.urgency,
   importance: r.importance,
   effort: r.effort,
   energy: r.energy,
+  pleasure: r.pleasure ?? 3,
   notes: r.notes,
   done: r.done,
   addedAt: r.added_at,
@@ -388,22 +480,23 @@ function buildEvent(task, opts) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const lines = [];
   if (task.notes) lines.push(task.notes);
-  lines.push(`Category: ${task.category} · priority score ${calcScore(task, DEFAULT_WEIGHTS)}/100`);
+  lines.push(`Categories: ${taskCats(task).join(", ") || "—"} · priority score ${calcScore(task, DEFAULT_WEIGHTS)}/100`);
   lines.push("Scheduled from BrainQueue");
   const description = lines.join("\n");
+  const recurrence = task.recurrence && task.recurrence !== "none" ? task.recurrence : null;
 
   if (opts.allDay) {
     const start = new Date(`${opts.date}T00:00:00`);
     const end = new Date(start.getTime() + 24 * 3600 * 1000); // exclusive end = next day
     return {
-      summary: task.title, description, allDay: true, timeZone: tz,
+      summary: task.title, description, allDay: true, timeZone: tz, recurrence,
       startDate: ymd(start), endDate: ymd(end), reminders: opts.reminders,
     };
   }
   const start = new Date(`${opts.date}T${opts.time}:00`);
   const end = new Date(start.getTime() + opts.durationMin * 60000);
   return {
-    summary: task.title, description, allDay: false, timeZone: tz,
+    summary: task.title, description, allDay: false, timeZone: tz, recurrence,
     start: start.toISOString(), end: end.toISOString(), reminders: opts.reminders,
   };
 }
@@ -418,6 +511,7 @@ async function googleInsert(token, ev) {
         start: { dateTime: ev.start, timeZone: ev.timeZone },
         end: { dateTime: ev.end, timeZone: ev.timeZone } };
   body.reminders = { useDefault: false, overrides: ev.reminders.map(m => ({ method: "popup", minutes: m })) };
+  if (ev.recurrence) body.recurrence = [RRULE[ev.recurrence]];
   const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -439,6 +533,15 @@ async function microsoftInsert(token, ev) {
         start: { dateTime: noZ(ev.start), timeZone: ev.timeZone },
         end: { dateTime: noZ(ev.end), timeZone: ev.timeZone } };
   if (ev.reminders.length) { body.isReminderOn = true; body.reminderMinutesBeforeStart = Math.min(...ev.reminders); }
+  if (ev.recurrence) {
+    const day0 = new Date(ev.start || `${ev.startDate}T00:00:00`);
+    const pattern = ev.recurrence === "weekly"
+      ? { type: "weekly", interval: 1, daysOfWeek: [day0.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()] }
+      : ev.recurrence === "monthly"
+        ? { type: "absoluteMonthly", interval: 1, dayOfMonth: day0.getDate() }
+        : { type: "daily", interval: 1 };
+    body.recurrence = { pattern, range: { type: "noEnd", startDate: ev.startDate || ev.start.slice(0, 10) } };
+  }
   const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -497,6 +600,7 @@ function buildICS(ev) {
     lines.push(`DTSTART:${icsUTC(ev.start)}`, `DTEND:${icsUTC(ev.end)}`);
   }
   lines.push(`SUMMARY:${icsEscape(ev.summary)}`, `DESCRIPTION:${icsEscape(ev.description)}`);
+  if (ev.recurrence) lines.push(RRULE[ev.recurrence]);
   ev.reminders.forEach(m => {
     lines.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Reminder", `TRIGGER:-PT${m}M`, "END:VALARM");
   });
@@ -528,7 +632,7 @@ function mergeTasks(local, remote) {
 }
 
 const VIEWS = ["🔥 Do Now", "⚡ Quick Wins", "🧠 Low Energy", "🗂 By Category", "✅ Done"];
-const DEFAULT_FORM = { title: "", category: "Work", urgency: 3, importance: 3, effort: 3, energy: 3, notes: "" };
+const DEFAULT_FORM = { title: "", categories: ["Work"], recurrence: "none", urgency: 3, importance: 3, effort: 3, energy: 3, pleasure: 3, notes: "" };
 
 const glass = {
   background: "rgba(255,255,255,0.04)",
@@ -592,11 +696,11 @@ function MouseGlow() {
     // Draw organic blob using canvas path with sinusoidal radii per segment
     // 5 layers: innermost 40px → outermost 200px, opacity 0.20 → 0.019 (×0.55 each step)
     const LAYERS = [
-      { r: 40,  hueShift: 0,   alpha: 0.200, deform: 1.00, speed: 1.00 },
-      { r: 75,  hueShift: 25,  alpha: 0.110, deform: 0.80, speed: 0.80 },
-      { r: 115, hueShift: 50,  alpha: 0.060, deform: 0.60, speed: 0.60 },
-      { r: 158, hueShift: 80,  alpha: 0.034, deform: 0.40, speed: 0.40 },
-      { r: 200, hueShift: 115, alpha: 0.019, deform: 0.22, speed: 0.22 },
+      { r: 40,  hueShift: 0,   alpha: 0.260, deform: 1.00, speed: 1.00 },
+      { r: 75,  hueShift: 25,  alpha: 0.150, deform: 0.80, speed: 0.80 },
+      { r: 115, hueShift: 50,  alpha: 0.085, deform: 0.60, speed: 0.60 },
+      { r: 158, hueShift: 80,  alpha: 0.048, deform: 0.40, speed: 0.40 },
+      { r: 200, hueShift: 115, alpha: 0.028, deform: 0.22, speed: 0.22 },
     ];
 
     const drawBlob = (cx, cy, layer, hueBase, frameLocal, speedLocal) => {
@@ -627,9 +731,9 @@ function MouseGlow() {
       ctx.quadraticCurveTo(last.x, last.y, (last.x + first.x) / 2, (last.y + first.y) / 2);
       ctx.closePath();
 
-      // Very wide falloff + canvas blur for true soft frontier
+      // Very wide falloff + heavy canvas blur for a true soft frontier
       ctx.save();
-      ctx.filter = `blur(${Math.round(baseR * 0.55)}px)`;
+      ctx.filter = `blur(${Math.round(baseR * 0.95)}px)`;
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 2.8);
       grad.addColorStop(0,    `hsla(${hue1}, 78%, 64%, ${alpha})`);
       grad.addColorStop(0.15, `hsla(${hue1}, 76%, 62%, ${alpha * 0.88})`);
@@ -669,7 +773,9 @@ function MouseGlow() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }} />;
+  // Extra CSS blur on the whole canvas melts the 5 layers into one seamless haze
+  // so no individual layer edge is ever visible.
+  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, filter: "blur(26px)" }} />;
 }
 
 function useHover() {
@@ -677,11 +783,11 @@ function useHover() {
   return [hovered, { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }];
 }
 
-function GlassButton({ onClick, children, accent, style = {}, disabled }) {
+function GlassButton({ onClick, children, accent, style = {}, disabled, className, title }) {
   const [hov, hovProps] = useHover();
   const [pressed, setPressed] = useState(false);
   return (
-    <button onClick={onClick} disabled={disabled}
+    <button onClick={onClick} disabled={disabled} className={className} title={title}
       onMouseDown={() => setPressed(true)} onMouseUp={() => setPressed(false)}
       {...hovProps}
       style={{
@@ -740,7 +846,7 @@ function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weights }) {
   const [hov, hovProps] = useHover();
   const score = calcScore(task, weights);
   const accent = CAT_ACCENT(task.category);
-  const glowRgb = CATEGORY_COLORS[task.category]?.glow || "255,255,255";
+  const glowRgb = CAT_GLOW(taskCats(task)[0] || task.category);
 
   return (
     <div {...hovProps} style={{
@@ -761,10 +867,14 @@ function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weights }) {
             <ScoreRing score={score} />
           </div>
           <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: "0.67rem", padding: "2px 8px", borderRadius: "20px", background: accent + "18", color: accent, border: `1px solid ${accent}30`, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>{task.category}</span>
+            {taskCats(task).map(c => { const a = CAT_ACCENT(c); return (
+              <span key={c} style={{ fontSize: "0.67rem", padding: "2px 8px", borderRadius: "20px", background: a + "18", color: a, border: `1px solid ${a}30`, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>{c}</span>
+            ); })}
+            {task.recurrence && task.recurrence !== "none" && <span style={{ fontSize: "0.6rem", color: "#888" }} title={RECURRENCE_LABELS[task.recurrence]}>🔁</span>}
             <span style={{ fontSize: "0.67rem", color: "#555" }}>{getUrgencyLabel(task.urgency)}</span>
             <span style={{ fontSize: "0.67rem", color: "#444" }}>⚡ {EFFORT_LABELS[task.effort]}</span>
             <span style={{ fontSize: "0.67rem", color: "#444" }}>🧠 {ENERGY_LABELS[task.energy]}</span>
+            {task.pleasure && <span style={{ fontSize: "0.67rem", color: "#444" }} title={`Pleasure: ${PLEASURE_LABELS[task.pleasure]}`}>{PLEASURE_LABELS[task.pleasure].split(" ")[0]}</span>}
           </div>
           {task.notes && <p style={{ fontSize: "0.74rem", color: "#4a4a4a", margin: "0.4rem 0 0", lineHeight: 1.5 }}>{task.notes}</p>}
           <p style={{ fontSize: "0.65rem", color: "#2e2e2e", margin: "0.5rem 0 0", fontFamily: "'DM Mono', monospace" }}>Added {formatDate(task.addedAt)}</p>
@@ -988,9 +1098,21 @@ function ScheduleModal({ task, session, onClose, onResult }) {
   );
 }
 
-function TaskModal({ task, onClose, onSave }) {
-  const [form, setForm] = useState(task || DEFAULT_FORM);
+function TaskModal({ task, onClose, onSave, customCategories = [], onAddCategory }) {
+  const [form, setForm] = useState(() => task ? { recurrence: "none", ...task, categories: taskCats(task) } : DEFAULT_FORM);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [newCat, setNewCat] = useState("");
+  const toggleCat = (c) => setForm(f => {
+    const has = f.categories.includes(c);
+    return { ...f, categories: has ? f.categories.filter(x => x !== c) : [...f.categories, c] };
+  });
+  const addCustom = () => {
+    const c = newCat.trim();
+    if (!c) return;
+    onAddCategory?.(c);
+    setForm(f => ({ ...f, categories: f.categories.includes(c) ? f.categories : [...f.categories, c] }));
+    setNewCat("");
+  };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
       <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
@@ -1001,12 +1123,12 @@ function TaskModal({ task, onClose, onSave }) {
         <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Task title…"
           style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.85rem 1rem", color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace", marginBottom: "1.2rem", outline: "none", boxSizing: "border-box" }} />
         <div style={{ marginBottom: "1.3rem" }}>
-          <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Category</label>
+          <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Categories <span style={{ textTransform: "none", color: "#444" }}>· pick one or more</span></label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-            {CATEGORIES.map(c => {
-              const acc = CAT_ACCENT(c); const active = form.category === c;
+            {allCategories(customCategories).map(c => {
+              const acc = CAT_ACCENT(c); const active = form.categories.includes(c);
               return (
-                <button key={c} onClick={() => set("category", c)} style={{
+                <button key={c} onClick={() => toggleCat(c)} style={{
                   padding: "0.3rem 0.8rem", borderRadius: "20px",
                   border: `1px solid ${active ? acc + "80" : "rgba(255,255,255,0.08)"}`,
                   background: active ? acc + "18" : "rgba(255,255,255,0.03)",
@@ -1014,7 +1136,30 @@ function TaskModal({ task, onClose, onSave }) {
                   fontFamily: "'Syne', sans-serif", fontWeight: 600,
                   boxShadow: active ? `0 0 10px ${acc}33` : "none",
                   transition: "background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s",
-                }}>{c}</button>
+                }}>{active ? "✓ " : ""}{c}</button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem" }}>
+            <input value={newCat} onChange={e => setNewCat(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+              placeholder="+ new category…" maxLength={20}
+              style={{ flex: 1, ...glass, borderRadius: "10px", padding: "0.5rem 0.75rem", color: "#e8e8e8", fontSize: "0.78rem", fontFamily: "'DM Mono', monospace", outline: "none", boxSizing: "border-box" }} />
+            <GlassButton onClick={addCustom} style={{ padding: "0.5rem 0.9rem", fontSize: "0.75rem" }}>Add</GlassButton>
+          </div>
+        </div>
+        <div style={{ marginBottom: "1.3rem" }}>
+          <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Repeat</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+            {Object.entries(RECURRENCE_LABELS).map(([k, label]) => {
+              const active = (form.recurrence || "none") === k;
+              return (
+                <button key={k} onClick={() => set("recurrence", k)} style={{
+                  padding: "0.3rem 0.8rem", borderRadius: "20px",
+                  border: `1px solid ${active ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.08)"}`,
+                  background: active ? "rgba(232,255,90,0.14)" : "rgba(255,255,255,0.03)",
+                  color: active ? "#e8ff5a" : "#444", fontSize: "0.75rem", cursor: "pointer",
+                  fontFamily: "'Syne', sans-serif", fontWeight: 600, transition: "all 0.15s",
+                }}>{label}</button>
               );
             })}
           </div>
@@ -1023,9 +1168,10 @@ function TaskModal({ task, onClose, onSave }) {
         <GlassSlider label="Importance" value={form.importance} onChange={v => set("importance", v)} sublabels={{ 1: "Nice to have", 2: "Low", 3: "Medium", 4: "High", 5: "Critical" }} />
         <GlassSlider label="Effort" value={form.effort} onChange={v => set("effort", v)} sublabels={EFFORT_LABELS} />
         <GlassSlider label="Energy needed" value={form.energy} onChange={v => set("energy", v)} sublabels={ENERGY_LABELS} />
+        <GlassSlider label="Pleasure" value={form.pleasure ?? 3} onChange={v => set("pleasure", v)} sublabels={PLEASURE_LABELS} />
         <textarea value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Notes…"
           style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.75rem 1rem", color: "#888", fontSize: "0.82rem", fontFamily: "'DM Mono', monospace", resize: "none", height: "64px", outline: "none", marginBottom: "1.2rem", boxSizing: "border-box" }} />
-        <GlassButton onClick={() => { if (form.title.trim()) onSave({ ...form, id: task?.id || Date.now(), done: task?.done || false, addedAt: task?.addedAt || new Date().toISOString(), doneAt: task?.doneAt || null }); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem", fontSize: "0.9rem" }}>
+        <GlassButton onClick={() => { if (form.title.trim() && form.categories.length) onSave({ ...form, category: form.categories[0], id: task?.id || Date.now(), done: task?.done || false, addedAt: task?.addedAt || new Date().toISOString(), doneAt: task?.doneAt || null }); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem", fontSize: "0.9rem" }}>
           Save task →
         </GlassButton>
       </div>
@@ -1174,9 +1320,9 @@ function WeightSlider({ label, value, onChange, description }) {
 
 function SettingsModal({ apiKey, weights, onSave, onClose }) {
   const [key, setKey] = useState(apiKey);
-  const [w, setW] = useState(weights || DEFAULT_WEIGHTS);
+  const [w, setW] = useState({ ...DEFAULT_WEIGHTS, ...(weights || {}) });
   const setWField = (k, v) => setW(prev => ({ ...prev, [k]: v }));
-  const total = w.urgency + w.importance + w.effort + w.energy;
+  const total = w.urgency + w.importance + w.effort + w.energy + (w.pleasure ?? 0);
   const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
 
   return (
@@ -1204,8 +1350,8 @@ function SettingsModal({ apiKey, weights, onSave, onClose }) {
           <p style={{ fontSize: "0.72rem", color: "#333", marginBottom: "1.2rem", lineHeight: 1.6 }}>
             Controls what makes a task rise to the top in 🔥 Do Now. Higher weight = more influence on score.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.4rem", marginBottom: "1.2rem" }}>
-            {[["Urgency", w.urgency], ["Importance", w.importance], ["Quick win", w.effort], ["Low energy", w.energy]].map(([l, v]) => (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "0.4rem", marginBottom: "1.2rem" }}>
+            {[["Urgency", w.urgency], ["Importance", w.importance], ["Quick win", w.effort], ["Low energy", w.energy], ["Pleasure", w.pleasure ?? 0]].map(([l, v]) => (
               <div key={l} style={{ ...glass, borderRadius: "10px", padding: "0.6rem", textAlign: "center" }}>
                 <div style={{ fontSize: "0.62rem", color: "#444", fontFamily: "'Syne', sans-serif", marginBottom: "0.2rem" }}>{l}</div>
                 <div style={{ fontSize: "1rem", fontWeight: 800, color: "#e8ff5a", fontFamily: "'Syne', sans-serif" }}>{pct(v)}%</div>
@@ -1216,6 +1362,7 @@ function SettingsModal({ apiKey, weights, onSave, onClose }) {
           <WeightSlider label="Importance" value={w.importance} onChange={v => setWField("importance", v)} description="impact if done" />
           <WeightSlider label="Effort (Quick Win)" value={w.effort} onChange={v => setWField("effort", v)} description="rewards fast tasks" />
           <WeightSlider label="Energy (Low cost)" value={w.energy} onChange={v => setWField("energy", v)} description="rewards easy brain tasks" />
+          <WeightSlider label="Pleasure" value={w.pleasure ?? 0} onChange={v => setWField("pleasure", v)} description="rewards tasks you enjoy" />
           <button onClick={() => setW(DEFAULT_WEIGHTS)} style={{
             background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px",
             color: "#444", fontSize: "0.72rem", cursor: "pointer", padding: "0.4rem 0.8rem",
@@ -1248,12 +1395,283 @@ function ExportButton({ tasks, weights }) {
   return <GlassButton onClick={exportCSV} style={{ padding: "0.6rem 0.9rem", fontSize: "0.75rem" }}>↓ CSV</GlassButton>;
 }
 
+// ─── Sidebar: XP/level, analytics, categories ────────────────────────────────
+function XPBar({ tasks }) {
+  const xp = totalXP(tasks);
+  const { level, into, need, pct, title } = levelInfo(xp);
+  return (
+    <div style={{ ...glass, borderRadius: "14px", padding: "0.85rem 0.9rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem" }}>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "0.85rem", color: "#e8ff5a", textShadow: "0 0 14px rgba(232,255,90,0.4)" }}>LV {level}</span>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontSize: "0.66rem", color: "#888" }}>{title}</span>
+      </div>
+      <div style={{ height: "8px", borderRadius: "20px", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}
+        title={`${xp} XP · ${into}/${need} to LV ${level + 1}`}>
+        <div style={{ height: "100%", width: `${pct}%`, borderRadius: "20px", background: "linear-gradient(90deg,#e8ff5a,#6bffb3)", boxShadow: "0 0 12px rgba(232,255,90,0.5)", transition: "width 0.5s cubic-bezier(0.34,1.3,0.64,1)" }} />
+      </div>
+    </div>
+  );
+}
+
+function MiniBars({ data, accent = "#e8ff5a", height = 70, showValues = true }) {
+  const max = Math.max(1, ...data.map(d => d.count));
+  const [hi, setHi] = useState(null);
+  const h = hi != null ? data[hi] : null;
+  // Plot area and label row are siblings, so each bar's % height resolves cleanly
+  // against the fixed-height plot (no flex-shrink squashing them to equal sizes).
+  return (
+    <div style={{ position: "relative", marginTop: "0.6rem" }}>
+      {/* Floating tooltip with the hovered bar's details. */}
+      {h && (
+        <div style={{ position: "absolute", bottom: "100%", left: `${((hi + 0.5) / data.length) * 100}%`, transform: "translate(-50%, -6px)",
+          ...glassStrong, borderRadius: "10px", padding: "0.45rem 0.65rem", whiteSpace: "nowrap", pointerEvents: "none", zIndex: 5,
+          border: "1px solid rgba(255,255,255,0.14)", boxShadow: "0 8px 24px rgba(0,0,0,0.45)" }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.68rem", color: "#fff" }}>{h.full || h.label}</div>
+          <div style={{ fontSize: "0.66rem", color: "#bbb", marginTop: "0.1rem" }}>
+            <b style={{ color: "#e8ff5a" }}>{h.count}</b> task{h.count === 1 ? "" : "s"} · <b style={{ color: "#6bffb3" }}>{h.xp}</b> XP
+          </div>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: "0.25rem", height: `${height}px` }}>
+        {data.map((d, i) => (
+          <div key={i} onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(p => (p === i ? null : p))}
+            style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", justifyContent: "center", cursor: "default" }}>
+            <div style={{ width: "100%", height: `${(d.count / max) * 100}%`, minHeight: d.count ? "4px" : "2px",
+              background: d.count ? (hi === i ? "#fff" : accent) : "rgba(255,255,255,0.07)", borderRadius: "4px 4px 2px 2px",
+              boxShadow: d.count && hi === i ? `0 0 14px ${accent}` : d.count ? `0 0 8px ${accent}55` : "none",
+              transition: "height 0.45s cubic-bezier(0.34,1.3,0.64,1), background 0.15s, box-shadow 0.15s",
+              display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+              {showValues && d.count > 0 && <span style={{ fontSize: "0.5rem", color: hi === i ? "#000" : "#0a0a0f", fontWeight: 700, marginTop: "-0.85rem" }}>{d.count}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.25rem" }}>
+        {data.map((d, i) => (
+          <span key={i} style={{ flex: 1, textAlign: "center", fontSize: "0.5rem", color: hi === i ? "#e8ff5a" : "#555", whiteSpace: "nowrap", overflow: "hidden" }}>
+            {data.length > 14 && (i % 5 !== 0) ? "" : d.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SideSection({ title, children, action }) {
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.55rem" }}>
+        <h4 style={{ fontFamily: "'Syne', sans-serif", fontSize: "0.66rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "#666", fontWeight: 700 }}>{title}</h4>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAnalytics, open, onClose, session }) {
+  const cats = allCategories(customCategories);
+  const countFor = (c) => tasks.filter(t => !t.done && taskCats(t).includes(c)).length;
+  const activeCount = tasks.filter(t => !t.done).length;
+
+  const catRow = (c, count, active) => {
+    const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c);
+    return (
+      <button key={c} onClick={() => onPickCategory(c)} style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%",
+        padding: "0.4rem 0.6rem", borderRadius: "9px", cursor: "pointer", marginBottom: "0.2rem",
+        border: `1px solid ${active ? acc + "66" : "transparent"}`, background: active ? acc + "18" : "transparent",
+        color: active ? acc : "#9a9aa6", fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: "0.76rem",
+        transition: "all 0.15s",
+      }}>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+          {c !== "All" && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: acc, boxShadow: `0 0 6px ${acc}` }} />}{c}
+        </span>
+        <span style={{ fontSize: "0.62rem", color: "#666" }}>{count}</span>
+      </button>
+    );
+  };
+
+  return (
+    <>
+      {open && <div className="bq-backdrop" onClick={onClose} />}
+      <aside className={`bq-sidebar${open ? " open" : ""}`}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.2rem", letterSpacing: "-0.03em" }}>
+            <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#e8ff5a", textShadow: "0 0 16px rgba(232,255,90,0.4)" }}>Queue</span>
+          </h1>
+          <button onClick={onClose} title="Close" style={{ background: "none", border: "none", color: "#666", fontSize: "1.3rem", cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+
+        <XPBar tasks={tasks} />
+
+        <SideSection title="Analytics">
+          <div style={{ ...glass, borderRadius: "12px", padding: "0.7rem 0.8rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", color: "#aaa", marginBottom: "0.6rem" }}>
+              <span><b style={{ color: "#e8ff5a" }}>{activeCount}</b> active</span>
+              <span><b style={{ color: "#6b9fff" }}>{todayScore(tasks)}</b> today</span>
+              <span><b style={{ color: "#6bffb3" }}>{weekScore(tasks)}</b> this wk</span>
+            </div>
+            <GlassButton onClick={onOpenAnalytics} style={{ width: "100%", padding: "0.5rem", fontSize: "0.74rem" }}>📊 View analytics</GlassButton>
+          </div>
+        </SideSection>
+
+        <SideSection title="Categories">
+          {catRow("All", tasks.filter(t => !t.done).length, filterCat === "All")}
+          {cats.map(c => catRow(c, countFor(c), filterCat === c))}
+        </SideSection>
+
+        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+          <UserChip session={session} />
+          <button onClick={() => signOut()} title="Sign out" style={{ ...glass, borderRadius: "10px", padding: "0.4rem 0.55rem", color: "#9a9aa6", cursor: "pointer", fontSize: "0.85rem", border: "1px solid rgba(255,255,255,0.1)" }}>⏻</button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─── Analytics modal ─────────────────────────────────────────────────────────
+function Donut({ donePct }) {
+  return (
+    <div style={{ width: "128px", height: "128px", borderRadius: "50%", position: "relative", flexShrink: 0,
+      background: `conic-gradient(#6bffb3 ${donePct * 3.6}deg, rgba(255,107,107,0.65) 0)`, boxShadow: "0 0 26px rgba(107,255,179,0.22)" }}>
+      <div style={{ position: "absolute", inset: "16px", borderRadius: "50%", background: "#0b0b14", display: "grid", placeItems: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.5rem", color: "#6bffb3" }}>{donePct}%</div>
+          <div style={{ fontSize: "0.58rem", color: "#777" }}>done</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, accent }) {
+  return (
+    <div style={{ ...glass, borderRadius: "14px", padding: "0.75rem 0.85rem", flex: 1, minWidth: 0 }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.35rem", color: accent || "#e8e8e8", lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: "0.6rem", color: "#777", marginTop: "0.25rem" }}>{label}</div>
+    </div>
+  );
+}
+
+function AnalyticsModal({ tasks, customCategories, onClose }) {
+  const [period, setPeriod] = useState("week");
+  const active = tasks.filter(t => !t.done);
+  const done = tasks.filter(t => t.done);
+  const total = tasks.length;
+  const donePct = total ? Math.round((done.length / total) * 100) : 0;
+  const series = doneSeries(tasks, period);
+  const periodCount = series.reduce((s, b) => s + b.count, 0);
+  const lvl = levelInfo(totalXP(tasks));
+  const cats = allCategories(customCategories).filter(c => tasks.some(t => taskCats(t).includes(c)));
+  const pVals = tasks.map(t => t.pleasure).filter(Boolean);
+  const avgP = pVals.length ? pVals.reduce((a, b) => a + b, 0) / pVals.length : 0;
+  const pEmoji = ["—", "😣", "😕", "😐", "🙂", "😍"][Math.round(avgP)] || "—";
+
+  const Section = ({ title, action, children }) => (
+    <div style={{ marginTop: "1.4rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+        <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#888", fontWeight: 700 }}>{title}</h3>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 120, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "1.5rem 1rem", backdropFilter: "blur(8px)", overflow: "auto" }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...glassStrong, borderRadius: "22px", width: "100%", maxWidth: "660px", padding: "1.8rem", margin: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.3rem" }}>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>📊 Analytics</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer" }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.6rem", marginBottom: "0.6rem" }}>
+          <StatCard label="Active tasks" value={active.length} accent="#e8ff5a" />
+          <StatCard label="Completed" value={done.length} accent="#6bffb3" />
+          <StatCard label={`Level · ${lvl.title}`} value={lvl.level} accent="#e8ff5a" />
+        </div>
+        <div style={{ display: "flex", gap: "0.6rem" }}>
+          <StatCard label="Done today" value={todayScore(tasks)} accent="#6b9fff" />
+          <StatCard label="Done this week" value={weekScore(tasks)} accent="#6b9fff" />
+          <StatCard label="Avg pleasure" value={pEmoji} accent="#ff8fd0" />
+        </div>
+
+        <Section title="Done vs. to-do">
+          <div style={{ display: "flex", alignItems: "center", gap: "1.4rem" }}>
+            <Donut donePct={donePct} />
+            <div style={{ fontSize: "0.82rem", lineHeight: 2 }}>
+              <div><span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#6bffb3", marginRight: "0.5rem" }} />{done.length} completed</div>
+              <div><span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "rgba(255,107,107,0.8)", marginRight: "0.5rem" }} />{active.length} still to do</div>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Completion by category">
+          {cats.length === 0 ? <p style={{ color: "#555", fontSize: "0.8rem" }}>No tasks yet.</p> : cats.map(c => {
+            const inCat = tasks.filter(t => taskCats(t).includes(c));
+            const d = inCat.filter(t => t.done).length;
+            const pct = Math.round((d / inCat.length) * 100);
+            const acc = CAT_ACCENT(c);
+            return (
+              <div key={c} style={{ marginBottom: "0.65rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.25rem" }}>
+                  <span style={{ color: acc, fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>{c}</span>
+                  <span style={{ color: "#777" }}>{d}/{inCat.length} · {pct}%</span>
+                </div>
+                <div style={{ height: "7px", borderRadius: "20px", background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: acc, borderRadius: "20px", boxShadow: `0 0 8px ${acc}66`, transition: "width 0.5s ease" }} />
+                </div>
+              </div>
+            );
+          })}
+        </Section>
+
+        <Section title="Completed over time" action={
+          <div style={{ display: "flex", gap: "0.3rem" }}>
+            {[["week", "This week"], ["month", "This month"]].map(([p, label]) => (
+              <button key={p} onClick={() => setPeriod(p)} style={{
+                padding: "0.25rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.68rem",
+                fontFamily: "'Syne', sans-serif", fontWeight: 700,
+                border: `1px solid ${period === p ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.1)"}`,
+                background: period === p ? "rgba(232,255,90,0.14)" : "transparent",
+                color: period === p ? "#e8ff5a" : "#777",
+              }}>{label}</button>
+            ))}
+          </div>
+        }>
+          <div style={{ ...glass, borderRadius: "14px", padding: "0.9rem 1rem" }}>
+            <MiniBars data={series} height={96} />
+            <p style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.6rem", textAlign: "center" }}>
+              <b style={{ color: "#e8ff5a" }}>{periodCount}</b> task{periodCount === 1 ? "" : "s"} completed {period === "week" ? "this week" : "this month"} · score {periodCount}
+            </p>
+          </div>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+// Inline "+ category" pill for the main category bar (Enter or + to add).
+function InlineCatAdd({ onAdd }) {
+  const [v, setV] = useState("");
+  const add = () => { const c = v.trim(); if (c) { onAdd(c); setV(""); } };
+  return (
+    <span style={{ display: "inline-flex", gap: "0.25rem", alignItems: "center" }}>
+      <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }}
+        placeholder="+ new category" maxLength={20}
+        style={{ ...glass, borderRadius: "20px", padding: "0.26rem 0.7rem", color: "#e8e8e8", fontSize: "0.72rem", fontFamily: "'DM Mono', monospace", outline: "none", width: "130px", boxSizing: "border-box" }} />
+      {v.trim() && <button onClick={add} style={{ ...glass, borderRadius: "20px", padding: "0.26rem 0.6rem", color: "#e8ff5a", cursor: "pointer", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.72rem", border: "1px solid rgba(232,255,90,0.3)" }}>Add</button>}
+    </span>
+  );
+}
+
 function MainApp({ session }) {
   const userId = session.user.id;
   setActiveUser(userId); // ensure row helpers stamp user_id before any task write
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
-  const { tasks, apiKey, weights = DEFAULT_WEIGHTS } = state;
+  const { tasks, apiKey, weights = DEFAULT_WEIGHTS, customCategories = [] } = state;
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
   const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(userId, n); return n; });
@@ -1329,6 +1747,8 @@ function MainApp({ session }) {
   const [scheduleTask, setScheduleTask] = useState(null);
   const [toast, setToast] = useState(null); // { type: "success" | "error", msg }
   const [filterCat, setFilterCat] = useState("All");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // After returning from a calendar-consent redirect, finish (or report) the
   // insert that was stashed before we left. Runs on mount + when the provider
@@ -1356,35 +1776,65 @@ function MainApp({ session }) {
     clearAuthParamsFromUrl();
   }, [session.provider_token]);
 
+  // All mutators compute from the *live* state (s.tasks) inside the updater, not
+  // a captured `tasks` closure — otherwise a realtime echo or a quick second
+  // action can revert an earlier change (e.g. completions silently disappearing).
+  const commit = useCallback((mut) => {
+    setState(s => {
+      const tasks2 = mut(s.tasks);
+      const n = { ...s, tasks: tasks2 };
+      saveState(userId, n);
+      return n;
+    });
+  }, [userId]);
+
   const saveTask = useCallback((t) => {
-    update({ tasks: tasks.find(x => x.id === t.id) ? tasks.map(x => x.id === t.id ? t : x) : [...tasks, t] });
+    commit(ts => ts.find(x => x.id === t.id) ? ts.map(x => x.id === t.id ? t : x) : [...ts, t]);
     upsertTask(t);
     setShowAdd(false); setEditTask(null);
-  }, [tasks]);
+  }, [commit]);
 
   const markDone = useCallback((id) => {
-    const updated = tasks.map(t => t.id === id ? { ...t, done: true, doneAt: new Date().toISOString() } : t);
-    update({ tasks: updated });
-    const task = updated.find(t => t.id === id);
-    if (task) upsertTask(task);
-  }, [tasks]);
+    commit(ts => {
+      const updated = ts.map(t => t.id === id ? { ...t, done: true, doneAt: new Date().toISOString() } : t);
+      const task = updated.find(t => t.id === id);
+      // Recurring task → spawn its next occurrence so it reappears in the queue.
+      const spawned = task && task.recurrence && task.recurrence !== "none" ? nextOccurrence({ ...task, done: false, doneAt: null }) : null;
+      if (task) upsertTask(task);
+      if (spawned) upsertTask(spawned);
+      return spawned ? [...updated, spawned] : updated;
+    });
+  }, [commit]);
+
+  const addCategory = useCallback((c) => {
+    const name = c.trim();
+    if (!name) return;
+    setState(s => {
+      if (allCategories(s.customCategories || []).includes(name)) return s;
+      const n = { ...s, customCategories: [...(s.customCategories || []), name] };
+      saveState(userId, n);
+      return n;
+    });
+  }, [userId]);
 
   const restore = useCallback((id) => {
-    const updated = tasks.map(t => t.id === id ? { ...t, done: false, doneAt: null } : t);
-    update({ tasks: updated });
-    const task = updated.find(t => t.id === id);
-    if (task) upsertTask(task);
-  }, [tasks]);
+    commit(ts => {
+      const updated = ts.map(t => t.id === id ? { ...t, done: false, doneAt: null } : t);
+      const task = updated.find(t => t.id === id);
+      if (task) upsertTask(task);
+      return updated;
+    });
+  }, [commit]);
 
   const deleteTask = useCallback((id) => {
-    update({ tasks: tasks.filter(t => t.id !== id) });
+    commit(ts => ts.filter(t => t.id !== id));
     deleteRemoteTask(id);
-  }, [tasks]);
+  }, [commit]);
 
   const addBulk = useCallback((newTasks) => {
-    update({ tasks: [...tasks, ...newTasks] });
+    commit(ts => [...ts, ...newTasks]);
     newTasks.forEach(t => upsertTask(t));
-  }, [tasks]);
+  }, [commit]);
 
   const active = tasks.filter(t => !t.done);
   const done = tasks.filter(t => t.done).sort((a, b) => new Date(b.doneAt) - new Date(a.doneAt));
@@ -1394,7 +1844,7 @@ function MainApp({ session }) {
     sorted.filter(t => calcScore(t, weights) >= 60 || t.urgency >= 4),
     sorted.filter(t => t.effort <= 2 && t.importance >= 3),
     sorted.filter(t => t.energy <= 2),
-    filterCat === "All" ? sorted : sorted.filter(t => t.category === filterCat),
+    filterCat === "All" ? sorted : sorted.filter(t => taskCats(t).includes(filterCat)),
   ][view];
 
   const viewDescriptions = [
@@ -1420,6 +1870,12 @@ function MainApp({ session }) {
         input, textarea { -webkit-appearance: none; appearance: none; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .task-enter { animation: fadeUp 0.28s cubic-bezier(0.34,1.2,0.64,1) both; }
+        .bq-sidebar { position: fixed; top: 0; left: 0; width: 264px; height: 100vh; overflow-y: auto; z-index: 40;
+          background: rgba(12,12,20,0.85); backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%);
+          border-right: 1px solid rgba(255,255,255,0.07); padding: 1.3rem 1.1rem 2rem; display: flex; flex-direction: column; gap: 1.3rem;
+          transform: translateX(-100%); transition: transform .26s cubic-bezier(.34,1.2,.64,1); box-shadow: 0 0 60px rgba(0,0,0,.6); }
+        .bq-sidebar.open { transform: translateX(0); }
+        .bq-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 39; }
       `}</style>
 
       <MouseGlow />
@@ -1430,13 +1886,20 @@ function MainApp({ session }) {
         <div style={{ position: "absolute", bottom: "-10%", right: "-5%", width: "500px", height: "500px", borderRadius: "50%", background: "radial-gradient(circle, rgba(196,123,255,0.05) 0%, transparent 70%)" }} />
       </div>
 
-      <div style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
+      <Sidebar tasks={tasks} customCategories={customCategories} filterCat={filterCat} session={session}
+        onPickCategory={(c) => { setFilterCat(c); setView(3); setSidebarOpen(false); }}
+        onOpenAnalytics={() => { setShowAnalytics(true); setSidebarOpen(false); }}
+        open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="bq-shell" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ padding: "2rem 1.5rem 1.2rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{ maxWidth: "720px", margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.5rem" }}>
-              <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <GlassButton onClick={() => setSidebarOpen(o => !o)} title="Menu" style={{ padding: "0.6rem 0.85rem", fontSize: "0.95rem", flexShrink: 0 }}>☰</GlassButton>
+                <div>
                 <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.7rem", letterSpacing: "-0.03em", lineHeight: 1 }}>
                   <span style={{ color: "#e8e8e8" }}>Brain</span>
                   <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
@@ -1447,11 +1910,10 @@ function MainApp({ session }) {
                   {syncStatus === "synced"  && <span style={{ color: "#6bffb3", marginLeft: "0.5rem" }}>✓ synced</span>}
                   {syncStatus === "error"   && <span style={{ color: "#ff6b6b", marginLeft: "0.5rem" }}>⚠ offline</span>}
                 </p>
+                </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                <UserChip session={session} />
                 <ExportButton tasks={tasks} weights={weights} />
-                <GlassButton onClick={() => signOut()} title="Sign out" style={{ padding: "0.6rem 0.8rem", fontSize: "0.75rem" }}>⏻</GlassButton>
                 <GlassButton onClick={() => setShowSettings(true)} style={{ padding: "0.6rem 0.8rem" }}>⚙️</GlassButton>
                 <GlassButton onClick={() => setShowDump(true)}>Brain Dump</GlassButton>
                 <GlassButton onClick={() => setShowAdd(true)} accent="#e8ff5a">+ Add</GlassButton>
@@ -1466,7 +1928,7 @@ function MainApp({ session }) {
         {view === 3 && (
           <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
             <div style={{ maxWidth: "720px", margin: "0 auto", display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-              {["All", ...CATEGORIES].map(c => {
+              {["All", ...allCategories(customCategories)].map(c => {
                 const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c); const act = filterCat === c;
                 return (
                   <button key={c} onClick={() => setFilterCat(c)} style={{
@@ -1479,6 +1941,7 @@ function MainApp({ session }) {
                   }}>{c}</button>
                 );
               })}
+              <InlineCatAdd onAdd={addCategory} />
             </div>
           </div>
         )}
@@ -1518,8 +1981,9 @@ function MainApp({ session }) {
 
       {showSettings && <SettingsModal apiKey={apiKey} weights={weights} onSave={(k, w) => update({ apiKey: k, weights: w })} onClose={() => setShowSettings(false)} />}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} apiKey={apiKey} weights={weights} />}
-      {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} />}
+      {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={customCategories} onAddCategory={addCategory} />}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
+      {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={customCategories} onClose={() => setShowAnalytics(false)} />}
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
