@@ -29,5 +29,8 @@ exports_csv
 # personal task exports (root-level CSVs)
 /*.csv
 
+# internal design mockups
+design-proposals*.html
+
 # eval run artifacts (keep the harness + config, ignore generated results)
 eval/results/
