@@ -36,6 +36,12 @@ Score every task with integers 1-5:
 category: exactly one of Health, Work, Admin, Social, Finance, Learning, Personal.
 notes: a short piece of context taken from the dump, or "" when there is none. Never just repeat the title.
 
+Also classify how the task will be worked:
+- est_minutes: a single best estimate of focused minutes to finish (e.g. 5, 25, 90). Keep it realistic.
+- cognitive_load: 1 = mindless, 5 = deep concentration. Estimate the mental demand.
+- ai_delegatable: true if an AI assistant could do most of the work (drafting, summarising, research, coding), false for physical/in-person/decision-only tasks.
+- multi_step: true if the task clearly involves several distinct sub-steps, false if it is a single action.
+
 If the input contains no actionable tasks, return an empty list.`;
 
 // JSON schema for structured outputs. enum constraints are allowed by the
@@ -51,8 +57,12 @@ const TASK_ITEM_SCHEMA = {
     effort: { type: "integer", enum: [1, 2, 3, 4, 5] },
     energy: { type: "integer", enum: [1, 2, 3, 4, 5] },
     notes: { type: "string" },
+    est_minutes: { type: "integer" },
+    cognitive_load: { type: "integer", enum: [1, 2, 3, 4, 5] },
+    ai_delegatable: { type: "boolean" },
+    multi_step: { type: "boolean" },
   },
-  required: ["title", "category", "urgency", "importance", "effort", "energy", "notes"],
+  required: ["title", "category", "urgency", "importance", "effort", "energy", "notes", "est_minutes", "cognitive_load", "ai_delegatable", "multi_step"],
   additionalProperties: false,
 };
 
@@ -73,13 +83,20 @@ export function sanitizeTask(t) {
     return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 3;
   };
   const category = CATEGORIES.includes(t?.category) ? t.category : "Personal";
+  const effort = clamp(t?.effort);
+  const estFromEffort = [2, 15, 60, 240, 480][effort - 1];
+  const est = Math.round(Number(t?.est_minutes));
   return {
     title: String(t?.title ?? "").trim() || "Untitled task",
     category,
     urgency: clamp(t?.urgency),
     importance: clamp(t?.importance),
-    effort: clamp(t?.effort),
+    effort,
     energy: clamp(t?.energy),
     notes: typeof t?.notes === "string" ? t.notes : "",
+    est_minutes: Number.isFinite(est) && est > 0 ? Math.min(est, 2880) : estFromEffort,
+    cognitive_load: clamp(t?.cognitive_load),
+    ai_delegatable: !!t?.ai_delegatable,
+    multi_step: t?.multi_step != null ? !!t.multi_step : effort >= 4,
   };
 }

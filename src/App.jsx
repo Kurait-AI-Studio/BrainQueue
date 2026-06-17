@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   CATEGORIES,
@@ -328,6 +328,36 @@ function nextOccurrence(task) {
   return { ...task, id: Date.now() + Math.floor(Math.random() * 1000), done: false, doneAt: null, addedAt: new Date().toISOString() };
 }
 
+// ─── Classification: reflex / standard / heavy ───────────────────────────────
+// est_minutes / cognitive_load / ai_delegatable / multi_step come free from the
+// Brain Dump call; for manual or pre-classification tasks we derive them so every
+// task still gets a tier with no extra input.
+const EST_BY_EFFORT = [2, 15, 60, 240, 480]; // minutes, indexed by effort-1
+function withClassification(t) {
+  const effort = t.effort || 3;
+  return {
+    ...t,
+    est_minutes: t.est_minutes ?? EST_BY_EFFORT[Math.min(4, Math.max(0, effort - 1))],
+    cognitive_load: t.cognitive_load ?? t.energy ?? 3,
+    ai_delegatable: t.ai_delegatable ?? false,
+    multi_step: t.multi_step ?? effort >= 4,
+  };
+}
+const TIER = {
+  reflex:   { label: "Reflex",   icon: "⚡", color: "#6bffb3" },
+  standard: { label: "Standard", icon: "◐", color: "#6b9fff" },
+  heavy:    { label: "Heavy",    icon: "⬣", color: "#c47bff" },
+};
+function taskTier(t) {
+  const load = t.cognitive_load ?? t.energy ?? 3;
+  const effort = t.effort || 3;
+  const multi = t.multi_step ?? effort >= 4;
+  if (effort >= 4 || (load >= 4 && multi)) return "heavy";
+  if (effort <= 2 && load <= 2 && !multi) return "reflex";
+  return "standard";
+}
+const fmtDuration = (m) => (m >= 60 ? `${Math.round((m / 60) * 10) / 10}h`.replace(".0h", "h") : `${m}m`);
+
 function formatDate(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -396,6 +426,10 @@ const toRow = (t) => ({
   effort: t.effort,
   energy: t.energy,
   pleasure: t.pleasure ?? 3,
+  est_minutes: t.est_minutes ?? null,
+  cognitive_load: t.cognitive_load ?? null,
+  ai_delegatable: t.ai_delegatable ?? false,
+  multi_step: t.multi_step ?? false,
   notes: t.notes || "",
   done: t.done || false,
   added_at: t.addedAt || new Date().toISOString(),
@@ -413,6 +447,10 @@ const fromRow = (r) => ({
   effort: r.effort,
   energy: r.energy,
   pleasure: r.pleasure ?? 3,
+  est_minutes: r.est_minutes ?? undefined,
+  cognitive_load: r.cognitive_load ?? undefined,
+  ai_delegatable: r.ai_delegatable ?? false,
+  multi_step: r.multi_step ?? false,
   notes: r.notes,
   done: r.done,
   addedAt: r.added_at,
@@ -440,6 +478,36 @@ async function deleteRemoteTask(id) {
   if (!sb) return;
   const { error } = await sb.from("tasks").delete().eq("id", String(id));
   if (error) console.error("Supabase delete:", error);
+}
+
+// ─── Telemetry ───────────────────────────────────────────────────────────────
+// Fire-and-forget append to the immutable task_events log (the behavioral moat).
+// Never blocks or throws into the UI — failures are swallowed like upsertTask.
+function logEvent(eventType, taskId = null, context = null) {
+  const sb = getSupabase();
+  if (!sb || !_userId) return;
+  sb.from("task_events")
+    .insert({ user_id: _userId, task_id: taskId != null ? String(taskId) : null, event_type: eventType, event_at: new Date().toISOString(), context })
+    .then(({ error }) => { if (error) console.warn("task_events:", error.message); });
+}
+
+// Focus sessions. insert returns the new row id so we can finalize it on session end.
+async function insertSession(plannedIds) {
+  const sb = getSupabase();
+  if (!sb || !_userId) return null;
+  const { data, error } = await sb.from("sessions")
+    .insert({ user_id: _userId, planned_task_ids: plannedIds.map(String), started_at: new Date().toISOString() })
+    .select("id").single();
+  if (error) { console.warn("sessions insert:", error.message); return null; }
+  return data?.id ?? null;
+}
+async function finalizeSession(id, completedIds, focusSeconds) {
+  const sb = getSupabase();
+  if (!sb || id == null) return;
+  const { error } = await sb.from("sessions")
+    .update({ ended_at: new Date().toISOString(), completed_task_ids: completedIds.map(String), focus_seconds: Math.round(focusSeconds) })
+    .eq("id", id);
+  if (error) console.warn("sessions finalize:", error.message);
 }
 
 // ─── Calendar ────────────────────────────────────────────────────────────────
@@ -842,6 +910,18 @@ function ScoreRing({ score }) {
   );
 }
 
+function TierBadge({ task, showEst = false }) {
+  const { label, icon, color } = TIER[taskTier(task)];
+  const est = task.est_minutes;
+  return (
+    <span title={`${label} task${est ? ` · ~${fmtDuration(est)}` : ""}${task.ai_delegatable ? " · AI can help" : ""}`}
+      style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.6rem", padding: "2px 7px", borderRadius: "20px",
+        background: color + "18", color, border: `1px solid ${color}30`, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>
+      {icon} {label}{showEst && est ? ` · ${fmtDuration(est)}` : ""}{task.ai_delegatable ? " · 🤖" : ""}
+    </span>
+  );
+}
+
 function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weights }) {
   const [hov, hovProps] = useHover();
   const score = calcScore(task, weights);
@@ -871,6 +951,7 @@ function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weights }) {
               <span key={c} style={{ fontSize: "0.67rem", padding: "2px 8px", borderRadius: "20px", background: a + "18", color: a, border: `1px solid ${a}30`, fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>{c}</span>
             ); })}
             {task.recurrence && task.recurrence !== "none" && <span style={{ fontSize: "0.6rem", color: "#888" }} title={RECURRENCE_LABELS[task.recurrence]}>🔁</span>}
+            <TierBadge task={task} showEst />
             <span style={{ fontSize: "0.67rem", color: "#555" }}>{getUrgencyLabel(task.urgency)}</span>
             <span style={{ fontSize: "0.67rem", color: "#444" }}>⚡ {EFFORT_LABELS[task.effort]}</span>
             <span style={{ fontSize: "0.67rem", color: "#444" }}>🧠 {ENERGY_LABELS[task.energy]}</span>
@@ -1121,7 +1202,11 @@ function TaskModal({ task, onClose, onSave, customCategories = [], onAddCategory
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
         </div>
         <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Task title…"
-          style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.85rem 1rem", color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace", marginBottom: "1.2rem", outline: "none", boxSizing: "border-box" }} />
+          style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.85rem 1rem", color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace", marginBottom: "0.7rem", outline: "none", boxSizing: "border-box" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.2rem" }}>
+          <TierBadge task={form} showEst />
+          <span style={{ fontSize: "0.66rem", color: "#444" }}>auto-classified from effort & energy</span>
+        </div>
         <div style={{ marginBottom: "1.3rem" }}>
           <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Categories <span style={{ textTransform: "none", color: "#444" }}>· pick one or more</span></label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
@@ -1286,6 +1371,7 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
                       <Dim label="I" value={t.importance} onChange={v => updateTask(i, { importance: v })} />
                       <Dim label="E" value={t.effort} onChange={v => updateTask(i, { effort: v })} />
                       <Dim label="⚡" value={t.energy} onChange={v => updateTask(i, { energy: v })} />
+                      <TierBadge task={t} showEst />
                     </div>
                   </div>
                 );
@@ -1392,7 +1478,7 @@ function ExportButton({ tasks, weights }) {
     const a = document.createElement("a"); a.href = url; a.download = `brainqueue_${new Date().toISOString().slice(0,10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
-  return <GlassButton onClick={exportCSV} style={{ padding: "0.6rem 0.9rem", fontSize: "0.75rem" }}>↓ CSV</GlassButton>;
+  return <GlassButton onClick={exportCSV} title="Export CSV" style={{ padding: "0.55rem 0.75rem", fontSize: "0.8rem" }}>↓<span className="bq-lbl"> CSV</span></GlassButton>;
 }
 
 // ─── Sidebar: XP/level, analytics, categories ────────────────────────────────
@@ -1652,6 +1738,305 @@ function AnalyticsModal({ tasks, customCategories, onClose }) {
   );
 }
 
+// ─── Focus sessions + Pomodoro ───────────────────────────────────────────────
+// Lightweight, fully client-side notifications: a soft chime + an in-tab Web
+// Notification on each phase change. No service worker, no backend.
+function notify(title, body) {
+  try { if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification(title, { body }); } catch { /* ignore */ }
+}
+let _audioCtx = null;
+function chime(freq = 660) {
+  try {
+    _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = _audioCtx.createOscillator(), g = _audioCtx.createGain();
+    o.type = "sine"; o.frequency.value = freq; o.connect(g); g.connect(_audioCtx.destination);
+    const t = _audioCtx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    o.start(t); o.stop(t + 0.7);
+  } catch { /* ignore */ }
+}
+const mmss = (s) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, s) % 60).padStart(2, "0")}`;
+const TIER_RANK = { reflex: 0, standard: 1, heavy: 2 };
+
+function FocusRing({ pct, color, big, sub }) {
+  return (
+    <div style={{ width: "min(72vw, 300px)", height: "min(72vw, 300px)", borderRadius: "50%", position: "relative",
+      background: `conic-gradient(${color} ${pct * 3.6}deg, rgba(255,255,255,0.05) 0)`, boxShadow: `0 0 70px ${color}33`, transition: "background 0.9s linear" }}>
+      <div style={{ position: "absolute", inset: "14px", borderRadius: "50%", background: "#060610", display: "grid", placeItems: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(2.4rem, 9vw, 3.4rem)", color, letterSpacing: "-0.02em" }}>{big}</div>
+          {sub && <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.2rem" }}>{sub}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Ready-made task sets so the user picks a focus in one tap instead of curating.
+// `tasks` arrives already active + score-sorted, so "Do Now" is just the top slice.
+function buildProposals(tasks) {
+  const defs = [
+    { id: "donow", icon: "🔥", name: "Do Now", desc: "Top priority right now", pick: ts => ts.slice(0, 4) },
+    { id: "quick", icon: "⚡", name: "Quick Wins", desc: "Fast, low-effort momentum", pick: ts => ts.filter(t => t.effort <= 2).slice(0, 5) },
+    { id: "deep", icon: "⬣", name: "Deep Work", desc: "Heavy focus, few tasks", pick: ts => ts.filter(t => taskTier(t) === "heavy").slice(0, 3) },
+    { id: "easy", icon: "🧠", name: "Low Energy", desc: "Gentle on the brain", pick: ts => ts.filter(t => (t.cognitive_load ?? t.energy ?? 3) <= 2).slice(0, 4) },
+  ];
+  return defs.map(d => ({ ...d, items: d.pick(tasks) })).filter(d => d.items.length);
+}
+
+function SessionStepper({ label, value, set, min, max }) {
+  return (
+    <div style={{ ...glass, borderRadius: "12px", padding: "0.7rem 0.9rem", flex: 1, textAlign: "center" }}>
+      <div style={{ fontSize: "0.62rem", color: "#666", fontFamily: "'Syne', sans-serif", marginBottom: "0.3rem", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.6rem" }}>
+        <button onClick={() => set(Math.max(min, value - 5))} style={{ background: "none", border: "none", color: "#666", fontSize: "1.1rem", cursor: "pointer" }}>−</button>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.2rem", color: "#e8ff5a", width: "44px" }}>{value}<span style={{ fontSize: "0.7rem", color: "#555" }}>m</span></span>
+        <button onClick={() => set(Math.min(max, value + 5))} style={{ background: "none", border: "none", color: "#666", fontSize: "1.1rem", cursor: "pointer" }}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function SessionSetupModal({ tasks, onStart, onClose }) {
+  const proposals = buildProposals(tasks);
+  const [mode, setMode] = useState("sets");           // sets | edit
+  const [picked, setPicked] = useState(() => proposals[0]?.id || null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set((proposals[0]?.items || []).map(t => t.id)));
+  const [work, setWork] = useState(25);
+  const [brk, setBrk] = useState(5);
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("All");
+
+  const selectProposal = (p) => { setPicked(p.id); setSelectedIds(new Set(p.items.map(t => t.id))); };
+  const toggle = (id) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const selectedTasks = tasks.filter(t => selectedIds.has(t.id));
+  const totalMin = selectedTasks.reduce((s, t) => s + (t.est_minutes || 25), 0);
+  const cats = ["All", ...new Set(tasks.flatMap(taskCats))];
+  const visible = tasks.filter(t =>
+    (catFilter === "All" || taskCats(t).includes(catFilter)) &&
+    (!search.trim() || t.title.toLowerCase().includes(search.toLowerCase())));
+  const start = () => { const ids = [...selectedIds]; if (ids.length) onStart({ taskIds: ids, work, brk }); };
+
+  const taskRow = (t) => {
+    const on = selectedIds.has(t.id);
+    return (
+      <button key={t.id} onClick={() => toggle(t.id)} style={{
+        ...glass, borderRadius: "10px", padding: "0.6rem 0.8rem", display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", textAlign: "left", width: "100%",
+        border: `1px solid ${on ? "rgba(232,255,90,0.5)" : "rgba(255,255,255,0.07)"}`, background: on ? "rgba(232,255,90,0.1)" : "rgba(255,255,255,0.03)",
+      }}>
+        <span style={{ color: on ? "#e8ff5a" : "#444", fontSize: "0.95rem" }}>{on ? "✓" : "○"}</span>
+        <span style={{ flex: 1, minWidth: 0, color: "#ddd", fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+        <TierBadge task={t} showEst />
+      </button>
+    );
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem 1rem", backdropFilter: "blur(8px)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...glassStrong, borderRadius: "24px", width: "100%", maxWidth: "680px", maxHeight: "90vh", overflow: "auto", padding: "2.2rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.5rem", color: "#fff", margin: 0 }}>▶ Start a focus session</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.6rem", cursor: "pointer" }}>×</button>
+        </div>
+
+        {tasks.length === 0 ? (
+          <p style={{ color: "#666", fontSize: "0.9rem", padding: "2rem 0", textAlign: "center" }}>No active tasks yet — add some first.</p>
+        ) : mode === "sets" ? (
+          <>
+            <p style={{ color: "#777", fontSize: "0.86rem", margin: "0.3rem 0 1.4rem" }}>Pick a set and go — tweak it only if you want to.</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.7rem", marginBottom: "1.6rem" }}>
+              {proposals.map(p => {
+                const on = picked === p.id;
+                const mins = p.items.reduce((s, t) => s + (t.est_minutes || 25), 0);
+                return (
+                  <button key={p.id} onClick={() => selectProposal(p)} style={{
+                    ...glass, borderRadius: "16px", padding: "1rem 1.1rem", cursor: "pointer", textAlign: "left",
+                    border: `1px solid ${on ? "rgba(232,255,90,0.55)" : "rgba(255,255,255,0.08)"}`,
+                    background: on ? "rgba(232,255,90,0.09)" : "rgba(255,255,255,0.03)",
+                    boxShadow: on ? "0 0 22px rgba(232,255,90,0.12)" : "none", transition: "all 0.18s",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.05rem", color: on ? "#e8ff5a" : "#eee" }}>{p.icon} {p.name}</span>
+                      {on && <span style={{ color: "#e8ff5a", fontSize: "0.9rem" }}>✓</span>}
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.25rem" }}>{p.desc}</div>
+                    <div style={{ fontSize: "0.68rem", color: "#555", marginTop: "0.6rem" }}>{p.items.length} task{p.items.length === 1 ? "" : "s"} · ~{fmtDuration(mins)}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+              <span style={{ fontSize: "0.74rem", color: "#888", fontFamily: "'Syne', sans-serif" }}>
+                {selectedTasks.length} task{selectedTasks.length === 1 ? "" : "s"} selected · ~{fmtDuration(totalMin)}
+              </span>
+              <button onClick={() => setMode("edit")} style={{ ...glass, borderRadius: "20px", padding: "0.35rem 0.9rem", color: "#6b9fff", cursor: "pointer", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.74rem", border: "1px solid rgba(107,159,255,0.3)" }}>✎ Modify set</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginBottom: "1.5rem", maxHeight: "180px", overflow: "auto" }}>
+              {selectedTasks.length === 0 ? <p style={{ color: "#555", fontSize: "0.8rem" }}>Nothing selected — pick a set or modify.</p> : selectedTasks.map(taskRow)}
+            </div>
+
+            <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.5rem" }}>
+              <SessionStepper label="Focus" value={work} set={setWork} min={5} max={90} />
+              <SessionStepper label="Break" value={brk} set={setBrk} min={5} max={30} />
+            </div>
+            <GlassButton onClick={start} disabled={!selectedTasks.length} accent="#e8ff5a" style={{ width: "100%", padding: "1rem", fontSize: "0.95rem" }}>Enter focus →</GlassButton>
+          </>
+        ) : (
+          <>
+            <p style={{ color: "#777", fontSize: "0.86rem", margin: "0.3rem 0 1rem" }}>Search or filter by category, then tap tasks to add or remove.</p>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…" autoFocus
+              style={{ width: "100%", ...glass, borderRadius: "12px", padding: "0.8rem 1rem", color: "#e8e8e8", fontSize: "0.88rem", fontFamily: "'DM Mono', monospace", outline: "none", boxSizing: "border-box", marginBottom: "0.8rem" }} />
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+              {cats.map(c => {
+                const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c); const on = catFilter === c;
+                return (
+                  <button key={c} onClick={() => setCatFilter(c)} style={{
+                    padding: "0.28rem 0.75rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem", fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                    border: `1px solid ${on ? acc + "70" : "rgba(255,255,255,0.07)"}`, background: on ? acc + "16" : "transparent", color: on ? acc : "#555",
+                  }}>{c}</button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginBottom: "1.3rem", maxHeight: "300px", overflow: "auto" }}>
+              {visible.length === 0 ? <p style={{ color: "#555", fontSize: "0.8rem" }}>No matching tasks.</p> : visible.map(taskRow)}
+            </div>
+            <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+              <span style={{ flex: 1, fontSize: "0.74rem", color: "#888", fontFamily: "'Syne', sans-serif" }}>{selectedTasks.length} selected · ~{fmtDuration(totalMin)}</span>
+              <GlassButton onClick={() => { setPicked(null); setMode("sets"); }} accent="#e8ff5a" style={{ padding: "0.7rem 1.6rem" }}>Done →</GlassButton>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FocusMode({ session, tasks, onMarkDone, onExit }) {
+  const [completed, setCompleted] = useState([]);
+  const remaining = session.taskIds.filter(id => !completed.includes(id));
+  const current = tasks.find(t => t.id === remaining[0]) || null;
+  const heaviestTier = session.taskIds
+    .map(id => tasks.find(t => t.id === id)).filter(Boolean)
+    .reduce((m, t) => Math.max(m, TIER_RANK[taskTier(t)]), 0);
+
+  const [phase, setPhase] = useState("intro"); // intro | work | break | done
+  const [secondsLeft, setSecondsLeft] = useState(session.work * 60);
+  const [running, setRunning] = useState(true);
+  const [pomos, setPomos] = useState(0);
+  const focusSec = useRef(0);
+  const flipping = useRef(false);
+
+  // Calm entrance; longer breath for heavier work.
+  useEffect(() => {
+    if (phase !== "intro") return;
+    const t = setTimeout(() => setPhase("work"), heaviestTier === 2 ? 4200 : 2400);
+    return () => clearTimeout(t);
+  }, [phase, heaviestTier]);
+
+  // Tick
+  useEffect(() => {
+    if ((phase !== "work" && phase !== "break") || !running) return;
+    const iv = setInterval(() => {
+      if (phase === "work") focusSec.current += 1;
+      setSecondsLeft(s => s - 1);
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [phase, running]);
+
+  // Phase transition when the clock runs out
+  useEffect(() => {
+    if (phase !== "work" && phase !== "break") return;
+    if (secondsLeft > 0) { flipping.current = false; return; }
+    if (flipping.current) return;
+    flipping.current = true;
+    if (phase === "work") {
+      chime(660); notify("Break time", "Step away and breathe.");
+      setPomos(p => p + 1); logEvent("pomodoro_completed", null, { minutes: session.work });
+      setPhase("break"); setSecondsLeft(session.brk * 60);
+    } else {
+      chime(880); notify("Back to focus", "Next round — let's go.");
+      setPhase("work"); setSecondsLeft(session.work * 60);
+    }
+  }, [secondsLeft, phase, session.work, session.brk]);
+
+  const finish = () => onExit(completed, focusSec.current);
+  const doneCurrent = () => {
+    if (!current) return;
+    onMarkDone(current.id);
+    const next = [...completed, current.id];
+    setCompleted(next);
+    if (session.taskIds.every(id => next.includes(id))) setPhase("done");
+  };
+
+  const shell = { position: "fixed", inset: 0, zIndex: 300, background: "radial-gradient(900px 600px at 50% 35%, rgba(232,255,90,0.05), transparent 60%), #060610", color: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "2rem", fontFamily: "'DM Mono', monospace" };
+
+  // INTRO ceremony
+  if (phase === "intro") {
+    const heavy = heaviestTier === 2;
+    return (
+      <div style={shell}>
+        <div className="task-enter" style={{ maxWidth: "560px" }}>
+          <p style={{ fontFamily: "'Syne', sans-serif", color: "#555", letterSpacing: "0.3em", textTransform: "uppercase", fontSize: "0.7rem" }}>Focus</p>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.6rem, 5vw, 2.4rem)", color: "#fff", margin: "1rem 0", lineHeight: 1.2 }}>{current ? current.title : "Let's begin"}</h1>
+          {heavy && <p style={{ color: "#888", fontSize: "0.9rem" }}>Take a breath. What does “done” look like?</p>}
+          <p style={{ color: "#444", fontSize: "0.78rem", marginTop: "1.5rem" }}>{session.work}-minute focus · {remaining.length} task{remaining.length === 1 ? "" : "s"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // DONE summary
+  if (phase === "done") {
+    return (
+      <div style={shell}>
+        <div className="task-enter">
+          <div style={{ fontSize: "2.4rem", marginBottom: "0.6rem" }}>✓</div>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem", color: "#e8ff5a", margin: 0 }}>Session complete</h1>
+          <p style={{ color: "#aaa", fontSize: "0.95rem", marginTop: "1rem", lineHeight: 1.9 }}>
+            <b style={{ color: "#6bffb3" }}>{completed.length}</b> task{completed.length === 1 ? "" : "s"} done ·{" "}
+            <b style={{ color: "#e8ff5a" }}>{mmss(focusSec.current)}</b> focused · <b style={{ color: "#6b9fff" }}>{pomos}</b> pomodoro{pomos === 1 ? "" : "s"}
+          </p>
+          <GlassButton onClick={finish} accent="#e8ff5a" style={{ marginTop: "1.8rem", padding: "0.8rem 2rem" }}>Done</GlassButton>
+        </div>
+      </div>
+    );
+  }
+
+  // WORK / BREAK
+  const isBreak = phase === "break";
+  const total = isBreak ? session.brk * 60 : session.work * 60;
+  const pct = total ? ((total - secondsLeft) / total) * 100 : 0;
+  const accent = isBreak ? "#6b9fff" : "#e8ff5a";
+  return (
+    <div style={shell}>
+      <button onClick={finish} title="End session"
+        style={{ position: "absolute", top: "1.2rem", right: "1.4rem", background: "none", border: "none", color: "#555", fontSize: "1.6rem", cursor: "pointer" }}>×</button>
+
+      <p style={{ fontFamily: "'Syne', sans-serif", color: accent, letterSpacing: "0.3em", textTransform: "uppercase", fontSize: "0.72rem", marginBottom: "0.4rem" }}>
+        {isBreak ? "Breathe" : "Focus"}{pomos > 0 ? ` · ${pomos} done` : ""}
+      </p>
+      <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.3rem, 4vw, 2rem)", color: "#fff", margin: "0 0 1.4rem", maxWidth: "640px", lineHeight: 1.25 }}>
+        {isBreak ? "Look away from the screen." : (current ? current.title : "All tasks done — wrap up.")}
+      </h1>
+
+      <FocusRing pct={pct} color={accent} big={mmss(secondsLeft)} sub={isBreak ? "break" : (current ? `${TIER[taskTier(current)].icon} ${TIER[taskTier(current)].label} · ~${fmtDuration(current.est_minutes || 25)}` : "")} />
+
+      <div style={{ display: "flex", gap: "0.7rem", marginTop: "2rem", flexWrap: "wrap", justifyContent: "center" }}>
+        <GlassButton onClick={() => setRunning(r => !r)} style={{ padding: "0.7rem 1.3rem" }}>{running ? "⏸ Pause" : "▶ Resume"}</GlassButton>
+        {!isBreak && current && <GlassButton onClick={doneCurrent} accent="#6bffb3" style={{ padding: "0.7rem 1.3rem" }}>✓ Done</GlassButton>}
+        {isBreak && <GlassButton onClick={() => { flipping.current = true; chime(880); setPhase("work"); setSecondsLeft(session.work * 60); }} style={{ padding: "0.7rem 1.3rem" }}>Skip break →</GlassButton>}
+        <GlassButton onClick={finish} style={{ padding: "0.7rem 1.3rem" }}>End</GlassButton>
+      </div>
+      {!isBreak && <p style={{ color: "#444", fontSize: "0.74rem", marginTop: "1.2rem" }}>{completed.length} of {session.taskIds.length} done this session</p>}
+    </div>
+  );
+}
+
 // Inline "+ category" pill for the main category bar (Enter or + to add).
 function InlineCatAdd({ onAdd }) {
   const [v, setV] = useState("");
@@ -1673,6 +2058,15 @@ function MainApp({ session }) {
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, apiKey, weights = DEFAULT_WEIGHTS, customCategories = [] } = state;
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
+
+  // Custom categories live in local storage and don't sync directly — but tasks
+  // DO sync, so any custom category attached to a task is recovered here by
+  // unioning the local list with every non-default category found on the tasks.
+  const syncedCategories = useMemo(() => {
+    const set = new Set(customCategories);
+    tasks.forEach(t => taskCats(t).forEach(c => { if (c && !CATEGORIES.includes(c)) set.add(c); }));
+    return [...set];
+  }, [customCategories, tasks]);
 
   const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(userId, n); return n; });
 
@@ -1749,6 +2143,8 @@ function MainApp({ session }) {
   const [filterCat, setFilterCat] = useState("All");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showSessionSetup, setShowSessionSetup] = useState(false);
+  const [focusSession, setFocusSession] = useState(null);
 
   // After returning from a calendar-consent redirect, finish (or report) the
   // insert that was stashed before we left. Runs on mount + when the provider
@@ -1788,9 +2184,12 @@ function MainApp({ session }) {
     });
   }, [userId]);
 
-  const saveTask = useCallback((t) => {
-    commit(ts => ts.find(x => x.id === t.id) ? ts.map(x => x.id === t.id ? t : x) : [...ts, t]);
+  const saveTask = useCallback((raw) => {
+    const t = withClassification(raw);           // ensure every task carries a tier
+    let isNew = false;
+    commit(ts => { isNew = !ts.find(x => x.id === t.id); return isNew ? [...ts, t] : ts.map(x => x.id === t.id ? t : x); });
     upsertTask(t);
+    logEvent(isNew ? "task_created" : "task_edited", t.id, { tier: taskTier(t), category: t.category });
     setShowAdd(false); setEditTask(null);
   }, [commit]);
 
@@ -1800,7 +2199,11 @@ function MainApp({ session }) {
       const task = updated.find(t => t.id === id);
       // Recurring task → spawn its next occurrence so it reappears in the queue.
       const spawned = task && task.recurrence && task.recurrence !== "none" ? nextOccurrence({ ...task, done: false, doneAt: null }) : null;
-      if (task) upsertTask(task);
+      if (task) {
+        upsertTask(task);
+        const late = task.addedAt && (new Date(task.doneAt) - new Date(task.addedAt)) / 3.6e6 > (URGENCY_TARGET_HRS[task.urgency] ?? 72);
+        logEvent(late ? "task_completed_late" : "task_completed", task.id, { tier: taskTier(task), xp: taskXP(task) });
+      }
       if (spawned) upsertTask(spawned);
       return spawned ? [...updated, spawned] : updated;
     });
@@ -1824,17 +2227,39 @@ function MainApp({ session }) {
       if (task) upsertTask(task);
       return updated;
     });
+    logEvent("task_restored", id);
   }, [commit]);
 
   const deleteTask = useCallback((id) => {
     commit(ts => ts.filter(t => t.id !== id));
     deleteRemoteTask(id);
+    logEvent("task_deleted", id);
   }, [commit]);
 
   const addBulk = useCallback((newTasks) => {
-    commit(ts => [...ts, ...newTasks]);
-    newTasks.forEach(t => upsertTask(t));
+    const classified = newTasks.map(withClassification);
+    commit(ts => [...ts, ...classified]);
+    classified.forEach(t => upsertTask(t));
+    logEvent("braindump_added", null, { count: classified.length });
   }, [commit]);
+
+  const startSession = useCallback(async ({ taskIds, work, brk }) => {
+    setShowSessionSetup(false);
+    try { if (typeof Notification !== "undefined" && Notification.permission === "default") await Notification.requestPermission(); } catch { /* ignore */ }
+    const id = await insertSession(taskIds);
+    logEvent("session_started", null, { count: taskIds.length, work, brk });
+    setFocusSession({ id, taskIds, work, brk });
+  }, []);
+
+  const endSession = useCallback((completedIds, focusSeconds) => {
+    setFocusSession(fs => {
+      if (fs) {
+        finalizeSession(fs.id, completedIds, focusSeconds);
+        logEvent("session_completed", null, { completed: completedIds.length, focus_seconds: Math.round(focusSeconds) });
+      }
+      return null;
+    });
+  }, []);
 
   const active = tasks.filter(t => !t.done);
   const done = tasks.filter(t => t.done).sort((a, b) => new Date(b.doneAt) - new Date(a.doneAt));
@@ -1876,6 +2301,14 @@ function MainApp({ session }) {
           transform: translateX(-100%); transition: transform .26s cubic-bezier(.34,1.2,.64,1); box-shadow: 0 0 60px rgba(0,0,0,.6); }
         .bq-sidebar.open { transform: translateX(0); }
         .bq-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 39; }
+        .bq-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1.3rem; }
+        .bq-actions { display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; }
+        @media (max-width: 680px) {
+          .bq-title { font-size: 1.3rem !important; }
+          .bq-sub { font-size: 0.62rem !important; }
+          .bq-lbl { display: none; }
+          .bq-actions { gap: 0.35rem; }
+        }
       `}</style>
 
       <MouseGlow />
@@ -1886,7 +2319,7 @@ function MainApp({ session }) {
         <div style={{ position: "absolute", bottom: "-10%", right: "-5%", width: "500px", height: "500px", borderRadius: "50%", background: "radial-gradient(circle, rgba(196,123,255,0.05) 0%, transparent 70%)" }} />
       </div>
 
-      <Sidebar tasks={tasks} customCategories={customCategories} filterCat={filterCat} session={session}
+      <Sidebar tasks={tasks} customCategories={syncedCategories} filterCat={filterCat} session={session}
         onPickCategory={(c) => { setFilterCat(c); setView(3); setSidebarOpen(false); }}
         onOpenAnalytics={() => { setShowAnalytics(true); setSidebarOpen(false); }}
         open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -1894,29 +2327,29 @@ function MainApp({ session }) {
       <div className="bq-shell" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
 
         {/* Header */}
-        <div style={{ padding: "2rem 1.5rem 1.2rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.5rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <GlassButton onClick={() => setSidebarOpen(o => !o)} title="Menu" style={{ padding: "0.6rem 0.85rem", fontSize: "0.95rem", flexShrink: 0 }}>☰</GlassButton>
-                <div>
-                <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.7rem", letterSpacing: "-0.03em", lineHeight: 1 }}>
-                  <span style={{ color: "#e8e8e8" }}>Brain</span>
-                  <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
-                </h1>
-                <p style={{ fontSize: "0.72rem", color: "#333", marginTop: "0.3rem" }}>
-                  {active.length} active · {done.length} done
-                  {syncStatus === "syncing" && <span style={{ color: "#6b9fff", marginLeft: "0.5rem" }}>↻ syncing</span>}
-                  {syncStatus === "synced"  && <span style={{ color: "#6bffb3", marginLeft: "0.5rem" }}>✓ synced</span>}
-                  {syncStatus === "error"   && <span style={{ color: "#ff6b6b", marginLeft: "0.5rem" }}>⚠ offline</span>}
-                </p>
+        <div style={{ padding: "1.5rem 1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ maxWidth: "780px", margin: "0 auto" }}>
+            <div className="bq-head">
+              <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", minWidth: 0 }}>
+                <GlassButton onClick={() => setSidebarOpen(o => !o)} title="Menu" style={{ padding: "0.55rem 0.75rem", fontSize: "0.95rem", flexShrink: 0 }}>☰</GlassButton>
+                <div style={{ minWidth: 0 }}>
+                  <h1 className="bq-title" style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.5rem", letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap" }}>
+                    <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#e8ff5a", textShadow: "0 0 18px rgba(232,255,90,0.35)" }}>Queue</span>
+                  </h1>
+                  <p className="bq-sub" style={{ fontSize: "0.7rem", color: "#555", marginTop: "0.35rem", whiteSpace: "nowrap", fontFamily: "'Syne', sans-serif" }}>
+                    {active.length} active · {done.length} done
+                    {syncStatus === "syncing" && <span style={{ color: "#6b9fff", marginLeft: "0.4rem" }}>↻</span>}
+                    {syncStatus === "synced"  && <span style={{ color: "#6bffb3", marginLeft: "0.4rem" }}>✓</span>}
+                    {syncStatus === "error"   && <span style={{ color: "#ff6b6b", marginLeft: "0.4rem" }}>⚠ offline</span>}
+                  </p>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+              <div className="bq-actions">
                 <ExportButton tasks={tasks} weights={weights} />
-                <GlassButton onClick={() => setShowSettings(true)} style={{ padding: "0.6rem 0.8rem" }}>⚙️</GlassButton>
-                <GlassButton onClick={() => setShowDump(true)}>Brain Dump</GlassButton>
-                <GlassButton onClick={() => setShowAdd(true)} accent="#e8ff5a">+ Add</GlassButton>
+                <GlassButton onClick={() => setShowSettings(true)} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.9rem" }}>⚙️</GlassButton>
+                <GlassButton onClick={() => setShowSessionSetup(true)} title="Focus" accent="#6bffb3" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>▶<span className="bq-lbl"> Focus</span></GlassButton>
+                <GlassButton onClick={() => setShowDump(true)} title="Brain Dump" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>✨<span className="bq-lbl"> Brain Dump</span></GlassButton>
+                <GlassButton onClick={() => setShowAdd(true)} title="Add task" accent="#e8ff5a" style={{ padding: "0.55rem 0.9rem", fontSize: "0.82rem" }}>+<span className="bq-lbl"> Add</span></GlassButton>
               </div>
             </div>
             <div style={{ display: "flex", gap: "0.4rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
@@ -1928,7 +2361,7 @@ function MainApp({ session }) {
         {view === 3 && (
           <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
             <div style={{ maxWidth: "720px", margin: "0 auto", display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-              {["All", ...allCategories(customCategories)].map(c => {
+              {["All", ...allCategories(syncedCategories)].map(c => {
                 const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c); const act = filterCat === c;
                 return (
                   <button key={c} onClick={() => setFilterCat(c)} style={{
@@ -1981,9 +2414,11 @@ function MainApp({ session }) {
 
       {showSettings && <SettingsModal apiKey={apiKey} weights={weights} onSave={(k, w) => update({ apiKey: k, weights: w })} onClose={() => setShowSettings(false)} />}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} apiKey={apiKey} weights={weights} />}
-      {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={customCategories} onAddCategory={addCategory} />}
+      {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} />}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
-      {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={customCategories} onClose={() => setShowAnalytics(false)} />}
+      {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
+      {showSessionSetup && <SessionSetupModal tasks={sorted} onStart={startSession} onClose={() => setShowSessionSetup(false)} />}
+      {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );
