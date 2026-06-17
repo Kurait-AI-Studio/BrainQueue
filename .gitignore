@@ -32,5 +32,9 @@ exports_csv
 # internal design mockups
 design-proposals*.html
 
+# internal planning / marketing docs (kept local)
+brainqueue-feature-roadmap.md
+brainqueue-video-scripts.txt
+
 # eval run artifacts (keep the harness + config, ignore generated results)
 eval/results/
