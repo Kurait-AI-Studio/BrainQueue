@@ -192,7 +192,7 @@ function LoginScreen() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #060610; }
+        html, body { background: #060610; overflow-x: hidden; max-width: 100%; }
         input { -webkit-appearance: none; appearance: none; }
       `}</style>
     </div>
@@ -723,6 +723,8 @@ function MouseGlow() {
   const raf = useRef(null);
 
   useEffect(() => {
+    // Respect reduced-motion: no animated cursor glow for those who opt out.
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     let w = window.innerWidth, h = window.innerHeight;
@@ -2037,6 +2039,30 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
   );
 }
 
+// An empty view is an invitation to act, not a dead end — directive copy + a CTA.
+function EmptyState({ view, filterCat, onAdd, onDump }) {
+  const c = [
+    { icon: "🔥", title: "Nothing urgent right now", sub: "Capture what's on your mind, or paste a messy note and let Brain Dump sort it into scored tasks." },
+    { icon: "⚡", title: "No quick wins queued", sub: "Short, high-impact tasks land here. Add a couple to build momentum." },
+    { icon: "🧠", title: "No low-energy tasks", sub: "Tasks you can do on empty show up here — add one for your tired hours." },
+    { icon: "🗂", title: filterCat === "All" ? "No active tasks" : `Nothing in ${filterCat}`, sub: "Add a task or capture a brain dump to fill this up." },
+    { icon: "🏆", title: "No finished tasks yet", sub: "Complete a task and it'll show up here — with the XP you earned." },
+  ][view] || { icon: "∅", title: "Nothing here yet", sub: "" };
+  return (
+    <div style={{ textAlign: "center", padding: "4.5rem 1rem", maxWidth: "400px", margin: "0 auto" }}>
+      <div style={{ fontSize: "2.2rem", marginBottom: "1rem" }}>{c.icon}</div>
+      <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.1rem", color: "#d8d8e0", margin: 0 }}>{c.title}</h3>
+      {c.sub && <p style={{ color: "#555", fontSize: "0.82rem", lineHeight: 1.65, marginTop: "0.6rem" }}>{c.sub}</p>}
+      {view !== 4 && (
+        <div style={{ display: "flex", gap: "0.6rem", justifyContent: "center", marginTop: "1.5rem", flexWrap: "wrap" }}>
+          <GlassButton onClick={onAdd} accent="#e8ff5a" style={{ padding: "0.6rem 1.1rem" }}>+ Add task</GlassButton>
+          <GlassButton onClick={onDump} style={{ padding: "0.6rem 1.1rem" }}>✨ Brain Dump</GlassButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Inline "+ category" pill for the main category bar (Enter or + to add).
 function InlineCatAdd({ onAdd }) {
   const [v, setV] = useState("");
@@ -2285,7 +2311,7 @@ function MainApp({ session }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #060610; }
+        html, body { background: #060610; overflow-x: hidden; max-width: 100%; }
         ::selection { background: #e8ff5a33; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -2307,7 +2333,16 @@ function MainApp({ session }) {
           .bq-title { font-size: 1.3rem !important; }
           .bq-sub { font-size: 0.62rem !important; }
           .bq-lbl { display: none; }
-          .bq-actions { gap: 0.35rem; }
+          /* Stack the header so actions get their own full-width row instead of
+             overflowing/overlapping the title on a phone. */
+          .bq-head { flex-wrap: wrap; }
+          .bq-actions { width: 100%; justify-content: space-between; gap: 0.3rem; margin-top: 0.2rem; }
+        }
+        /* Quality floor: visible keyboard focus + honour reduced-motion. */
+        :focus-visible { outline: 2px solid rgba(232,255,90,0.65); outline-offset: 2px; border-radius: 6px; }
+        *:focus:not(:focus-visible) { outline: none; }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
         }
       `}</style>
 
@@ -2381,22 +2416,15 @@ function MainApp({ session }) {
 
         <div style={{ padding: "0.9rem 1.5rem 0.4rem" }}>
           <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-            <p style={{ fontSize: "0.7rem", color: "#2e2e2e", fontFamily: "'Syne', sans-serif", letterSpacing: "0.04em" }}>
-              {viewTasks?.length} TASKS — {viewDescriptions[view].toUpperCase()}
+            <p style={{ fontSize: "0.7rem", color: "#3a3a3a", fontFamily: "'Syne', sans-serif", letterSpacing: "0.06em" }}>
+              <span style={{ color: "#6b6b76", fontWeight: 700 }}>{viewTasks?.length} {viewTasks?.length === 1 ? "TASK" : "TASKS"}</span> · {viewDescriptions[view].toUpperCase()}
             </p>
           </div>
         </div>
 
         <div style={{ padding: "0.5rem 1.5rem 5rem", maxWidth: "720px", margin: "0 auto" }}>
           {!viewTasks?.length ? (
-            <div style={{ textAlign: "center", padding: "5rem 0", color: "#222" }}>
-              <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem", opacity: 0.3 }}>
-                {view === 4 ? "🏆" : "∅"}
-              </div>
-              <p style={{ fontFamily: "'Syne', sans-serif", fontSize: "0.82rem" }}>
-                {view === 4 ? "No completed tasks yet" : "Nothing here yet"}
-              </p>
-            </div>
+            <EmptyState view={view} filterCat={filterCat} onAdd={() => setShowAdd(true)} onDump={() => setShowDump(true)} />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {viewTasks.map((t, i) => (
