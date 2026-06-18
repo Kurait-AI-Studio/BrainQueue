@@ -1990,11 +1990,11 @@ function MainApp({ session }) {
         @media (max-width: 680px) {
           .bq-title { font-size: 1.3rem !important; }
           .bq-sub { font-size: 0.62rem !important; }
-          .bq-lbl { display: none; }
-          /* Stack the header so actions get their own full-width row instead of
-             overflowing/overlapping the title on a phone. */
+          /* Stack the header; show LABELED action buttons that wrap into rows
+             (icon-only was too cryptic on a phone). */
           .bq-head { flex-wrap: wrap; }
-          .bq-actions { width: 100%; justify-content: space-between; gap: 0.3rem; margin-top: 0.2rem; }
+          .bq-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 0.4rem; margin-top: 0.5rem; }
+          .bq-actions > * { flex: 1 1 auto; justify-content: center; }
         }
         /* Quality floor: visible keyboard focus + honour reduced-motion. */
         :focus-visible { outline: 2px solid rgba(232,255,90,0.65); outline-offset: 2px; border-radius: 6px; }
@@ -2039,7 +2039,7 @@ function MainApp({ session }) {
               </div>
               <div className="bq-actions">
                 <ExportButton tasks={tasks} weights={weights} />
-                <GlassButton onClick={() => setShowSettings(true)} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.9rem" }}>⚙️</GlassButton>
+                <GlassButton onClick={() => setShowSettings(true)} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.82rem" }}>⚙️<span className="bq-lbl"> Settings</span></GlassButton>
                 <GlassButton onClick={() => setShowSessionSetup(true)} title="Focus" accent="#6bffb3" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>▶<span className="bq-lbl"> Focus</span></GlassButton>
                 <GlassButton onClick={() => setShowDump(true)} title="Brain Dump" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>✨<span className="bq-lbl"> Brain Dump</span></GlassButton>
                 <GlassButton onClick={() => setShowAdd(true)} title="Add task" accent="#e8ff5a" style={{ padding: "0.55rem 0.9rem", fontSize: "0.82rem" }}>+<span className="bq-lbl"> Add</span></GlassButton>
