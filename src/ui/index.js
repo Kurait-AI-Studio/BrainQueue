@@ -7,3 +7,6 @@ export { GlassButton } from "./GlassButton";
 export { ViewTab } from "./ViewTab";
 export { ScoreRing } from "./ScoreRing";
 export { GlassSlider } from "./GlassSlider";
+export { TierBadge } from "./TierBadge";
+export { TaskCard } from "./TaskCard";
+export { DoneCard } from "./DoneCard";
