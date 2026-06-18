@@ -8,7 +8,7 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, GlassSlider, TierBadge, TaskCard, DoneCard, XPBar, MiniBars, SideSection, Donut, StatCard, FocusRing, SessionStepper } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, GlassSlider, TierBadge, TaskCard, DoneCard, XPBar, MiniBars, SideSection, Donut, StatCard, FocusRing, SessionStepper, MouseGlow, Dim, WeightSlider, EmptyState, InlineCatAdd, Toast, UserChip } from "./ui";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -556,135 +556,7 @@ const DEFAULT_FORM = { title: "", categories: ["Work"], recurrence: "none", urge
 // glass + glassStrong tokens now live in ./ui/tokens (imported above).
 
 // Mouse glow — organic morphing shape, color tied to movement speed
-function MouseGlow() {
-  const canvasRef = useRef(null);
-  const raf = useRef(null);
-
-  useEffect(() => {
-    // Respect reduced-motion: no animated cursor glow for those who opt out.
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    let w = window.innerWidth, h = window.innerHeight;
-
-    const resize = () => {
-      w = window.innerWidth; h = window.innerHeight;
-      canvas.width = w; canvas.height = h;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    // State
-    const pos = { x: -999, y: -999 };      // actual mouse
-    const smooth = { x: -999, y: -999 };   // smoothed position for drawing
-    let hue = 260;                           // current displayed hue
-    let targetHue = 260;                     // hue we're drifting toward (set on move)
-    let speed = 0;                           // mouse speed magnitude
-    let prevX = -999, prevY = -999;
-
-    // Blob: 8 control points around the glow, each with their own phase offset
-    const N = 8;
-    const phases = Array.from({ length: N }, (_, i) => (i / N) * Math.PI * 2);
-    const phaseOffsets = Array.from({ length: N }, () => Math.random() * Math.PI * 2);
-    const ampOffsets = Array.from({ length: N }, () => Math.random() * Math.PI * 2);
-
-    let frame = 0;
-
-    const onMove = (e) => {
-      const dx = e.clientX - prevX;
-      const dy = e.clientY - prevY;
-      speed = Math.sqrt(dx * dx + dy * dy); // pixels moved this event
-      prevX = e.clientX; prevY = e.clientY;
-      pos.x = e.clientX; pos.y = e.clientY;
-      // Color advances proportionally to speed
-      targetHue = (targetHue + speed * 0.8) % 360;
-    };
-    window.addEventListener("mousemove", onMove);
-
-    // Draw organic blob using canvas path with sinusoidal radii per segment
-    // 5 layers: innermost 40px → outermost 200px, opacity 0.20 → 0.019 (×0.55 each step)
-    const LAYERS = [
-      { r: 40,  hueShift: 0,   alpha: 0.260, deform: 1.00, speed: 1.00 },
-      { r: 75,  hueShift: 25,  alpha: 0.150, deform: 0.80, speed: 0.80 },
-      { r: 115, hueShift: 50,  alpha: 0.085, deform: 0.60, speed: 0.60 },
-      { r: 158, hueShift: 80,  alpha: 0.048, deform: 0.40, speed: 0.40 },
-      { r: 200, hueShift: 115, alpha: 0.028, deform: 0.22, speed: 0.22 },
-    ];
-
-    const drawBlob = (cx, cy, layer, hueBase, frameLocal, speedLocal) => {
-      const { r: baseR, hueShift, alpha, deform } = layer;
-      const hue1 = (hueBase + hueShift) % 360;
-      const hue2 = (hue1 + 30) % 360;
-
-      const points = [];
-      for (let i = 0; i < N; i++) {
-        const angle = phases[i];
-        const slowWave = Math.sin(frameLocal * 0.007 + phaseOffsets[i]) * 0.22 * deform;
-        const fastWave = Math.sin(frameLocal * 0.019 + ampOffsets[i]) * 0.10 * deform;
-        const speedBulge = Math.sin(phases[i] + frameLocal * 0.04) * (speedLocal * 0.4 * deform);
-        const r = baseR * (1 + slowWave + fastWave) + speedBulge;
-        points.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
-      }
-
-      ctx.beginPath();
-      for (let i = 0; i < N; i++) {
-        const curr = points[i];
-        const next = points[(i + 1) % N];
-        const mid = { x: (curr.x + next.x) / 2, y: (curr.y + next.y) / 2 };
-        if (i === 0) ctx.moveTo(mid.x, mid.y);
-        else ctx.quadraticCurveTo(curr.x, curr.y, mid.x, mid.y);
-      }
-      const first = points[0];
-      const last = points[N - 1];
-      ctx.quadraticCurveTo(last.x, last.y, (last.x + first.x) / 2, (last.y + first.y) / 2);
-      ctx.closePath();
-
-      // Very wide falloff + heavy canvas blur for a true soft frontier
-      ctx.save();
-      ctx.filter = `blur(${Math.round(baseR * 0.95)}px)`;
-      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 2.8);
-      grad.addColorStop(0,    `hsla(${hue1}, 78%, 64%, ${alpha})`);
-      grad.addColorStop(0.15, `hsla(${hue1}, 76%, 62%, ${alpha * 0.88})`);
-      grad.addColorStop(0.35, `hsla(${hue1}, 72%, 58%, ${alpha * 0.60})`);
-      grad.addColorStop(0.55, `hsla(${hue2}, 68%, 54%, ${alpha * 0.32})`);
-      grad.addColorStop(0.75, `hsla(${hue2}, 64%, 50%, ${alpha * 0.12})`);
-      grad.addColorStop(0.90, `hsla(${hue2}, 60%, 46%, ${alpha * 0.03})`);
-      grad.addColorStop(1,    "transparent");
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.restore();
-    };
-
-    const draw = () => {
-      frame++;
-      ctx.clearRect(0, 0, w, h);
-
-      smooth.x += (pos.x - smooth.x) * 0.12;
-      smooth.y += (pos.y - smooth.y) * 0.12;
-
-      hue += (targetHue - hue) * 0.06;
-      speed *= 0.88;
-
-      // Draw outermost first so inner layers sit on top
-      for (let i = LAYERS.length - 1; i >= 0; i--) {
-        drawBlob(smooth.x, smooth.y, LAYERS[i], hue, frame, speed * LAYERS[i].speed);
-      }
-
-      raf.current = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMove);
-      cancelAnimationFrame(raf.current);
-    };
-  }, []);
-
-  // Extra CSS blur on the whole canvas melts the 5 layers into one seamless haze
-  // so no individual layer edge is ever visible.
-  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, filter: "blur(26px)" }} />;
-}
+// MouseGlow now lives in ./ui (imported above).
 
 // useHover, GlassButton, ViewTab, ScoreRing now live in ./ui (imported above).
 
@@ -925,17 +797,7 @@ function TaskModal({ task, onClose, onSave, customCategories = [], onAddCategory
 }
 
 // Compact −/value/+ stepper for tweaking a 1-5 score inline before adding.
-function Dim({ label, value, onChange }) {
-  const step = (d) => onChange(Math.min(5, Math.max(1, value + d)));
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-      <span style={{ fontSize: "0.62rem", color: "#555", fontFamily: "'Syne', sans-serif", width: "14px" }}>{label}</span>
-      <button onClick={() => step(-1)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "0.85rem", lineHeight: 1, padding: "0 2px" }}>−</button>
-      <span style={{ fontSize: "0.7rem", color: "#aaa", width: "10px", textAlign: "center" }}>{value}</span>
-      <button onClick={() => step(1)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "0.85rem", lineHeight: 1, padding: "0 2px" }}>+</button>
-    </div>
-  );
-}
+// Dim now lives in ./ui (imported above).
 
 function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
   const [dump, setDump] = useState("");
@@ -1048,21 +910,7 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
   );
 }
 
-function WeightSlider({ label, value, onChange, description }) {
-  return (
-    <div style={{ marginBottom: "1.2rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-        <div>
-          <span style={{ fontSize: "0.78rem", color: "#aaa", fontFamily: "'Syne', sans-serif", fontWeight: 700 }}>{label}</span>
-          <span style={{ fontSize: "0.68rem", color: "#444", marginLeft: "0.5rem" }}>{description}</span>
-        </div>
-        <span style={{ fontSize: "0.8rem", color: "#e8ff5a", fontWeight: 700, fontFamily: "'Syne', sans-serif", minWidth: "32px", textAlign: "right" }}>{value}</span>
-      </div>
-      <input type="range" min={0} max={100} step={5} value={value} onChange={e => onChange(+e.target.value)}
-        style={{ width: "100%" }} />
-    </div>
-  );
-}
+// WeightSlider now lives in ./ui (imported above).
 
 function SettingsModal({ apiKey, weights, onSave, onClose }) {
   const [key, setKey] = useState(apiKey);
@@ -1589,42 +1437,10 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
 }
 
 // An empty view is an invitation to act, not a dead end — directive copy + a CTA.
-function EmptyState({ view, filterCat, onAdd, onDump }) {
-  const c = [
-    { icon: "🔥", title: "Nothing urgent right now", sub: "Capture what's on your mind, or paste a messy note and let Brain Dump sort it into scored tasks." },
-    { icon: "⚡", title: "No quick wins queued", sub: "Short, high-impact tasks land here. Add a couple to build momentum." },
-    { icon: "🧠", title: "No low-energy tasks", sub: "Tasks you can do on empty show up here — add one for your tired hours." },
-    { icon: "🗂", title: filterCat === "All" ? "No active tasks" : `Nothing in ${filterCat}`, sub: "Add a task or capture a brain dump to fill this up." },
-    { icon: "🏆", title: "No finished tasks yet", sub: "Complete a task and it'll show up here — with the XP you earned." },
-  ][view] || { icon: "∅", title: "Nothing here yet", sub: "" };
-  return (
-    <div style={{ textAlign: "center", padding: "4.5rem 1rem", maxWidth: "400px", margin: "0 auto" }}>
-      <div style={{ fontSize: "2.2rem", marginBottom: "1rem" }}>{c.icon}</div>
-      <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.1rem", color: "#d8d8e0", margin: 0 }}>{c.title}</h3>
-      {c.sub && <p style={{ color: "#555", fontSize: "0.82rem", lineHeight: 1.65, marginTop: "0.6rem" }}>{c.sub}</p>}
-      {view !== 4 && (
-        <div style={{ display: "flex", gap: "0.6rem", justifyContent: "center", marginTop: "1.5rem", flexWrap: "wrap" }}>
-          <GlassButton onClick={onAdd} accent="#e8ff5a" style={{ padding: "0.6rem 1.1rem" }}>+ Add task</GlassButton>
-          <GlassButton onClick={onDump} style={{ padding: "0.6rem 1.1rem" }}>✨ Brain Dump</GlassButton>
-        </div>
-      )}
-    </div>
-  );
-}
+// EmptyState now lives in ./ui (imported above).
 
 // Inline "+ category" pill for the main category bar (Enter or + to add).
-function InlineCatAdd({ onAdd }) {
-  const [v, setV] = useState("");
-  const add = () => { const c = v.trim(); if (c) { onAdd(c); setV(""); } };
-  return (
-    <span style={{ display: "inline-flex", gap: "0.25rem", alignItems: "center" }}>
-      <input value={v} onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }}
-        placeholder="+ new category" maxLength={20}
-        style={{ ...glass, borderRadius: "20px", padding: "0.26rem 0.7rem", color: "#e8e8e8", fontSize: "0.72rem", fontFamily: "'DM Mono', monospace", outline: "none", width: "130px", boxSizing: "border-box" }} />
-      {v.trim() && <button onClick={add} style={{ ...glass, borderRadius: "20px", padding: "0.26rem 0.6rem", color: "#e8ff5a", cursor: "pointer", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.72rem", border: "1px solid rgba(232,255,90,0.3)" }}>Add</button>}
-    </span>
-  );
-}
+// InlineCatAdd now lives in ./ui (imported above).
 
 function MainApp({ session }) {
   const userId = session.user.id;
@@ -2002,39 +1818,9 @@ function MainApp({ session }) {
 }
 
 // Brief auto-dismissing notice for calendar add results (and the post-redirect resume).
-function Toast({ toast, onDone }) {
-  useEffect(() => { const id = setTimeout(onDone, 4500); return () => clearTimeout(id); }, [toast, onDone]);
-  const ok = toast.type === "success";
-  return (
-    <div onClick={onDone} style={{
-      position: "fixed", bottom: "1.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 200,
-      ...glassStrong, borderRadius: "14px", padding: "0.85rem 1.2rem", maxWidth: "90vw", cursor: "pointer",
-      border: `1px solid ${ok ? "rgba(107,255,179,0.4)" : "rgba(255,107,107,0.4)"}`,
-      display: "flex", alignItems: "center", gap: "0.6rem",
-      animation: "fadeUp 0.3s cubic-bezier(0.34,1.2,0.64,1) both",
-    }}>
-      <span style={{ fontSize: "1rem" }}>{ok ? "✓" : "⚠️"}</span>
-      <span style={{ fontSize: "0.8rem", color: ok ? "#cfe" : "#fcc", fontFamily: "'DM Mono', monospace" }}>{toast.msg}</span>
-    </div>
-  );
-}
+// Toast now lives in ./ui (imported above).
 
-function UserChip({ session }) {
-  const u = session.user;
-  const avatar = u.user_metadata?.avatar_url || u.user_metadata?.picture;
-  const name = u.user_metadata?.full_name || u.user_metadata?.name || u.email || "Account";
-  return (
-    <div title={u.email || name} style={{
-      ...glass, display: "flex", alignItems: "center", gap: "0.4rem",
-      borderRadius: "20px", padding: "0.25rem 0.7rem 0.25rem 0.3rem", maxWidth: "180px",
-    }}>
-      {avatar
-        ? <img src={avatar} alt="" referrerPolicy="no-referrer" style={{ width: "22px", height: "22px", borderRadius: "50%" }} />
-        : <span style={{ width: "22px", height: "22px", borderRadius: "50%", background: "rgba(232,255,90,0.18)", color: "#e8ff5a", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem", fontWeight: 800, fontFamily: "'Syne', sans-serif" }}>{(name[0] || "?").toUpperCase()}</span>}
-      <span style={{ fontSize: "0.72rem", color: "#aaa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-    </div>
-  );
-}
+// UserChip now lives in ./ui (imported above).
 
 export default function App() {
   // undefined = still loading the session; null = no Supabase / signed out.

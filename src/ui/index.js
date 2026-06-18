@@ -11,3 +11,5 @@ export { TierBadge } from "./TierBadge";
 export { TaskCard } from "./TaskCard";
 export { DoneCard } from "./DoneCard";
 export { XPBar, MiniBars, SideSection, Donut, StatCard, FocusRing, SessionStepper } from "./widgets";
+export { MouseGlow } from "./MouseGlow";
+export { Dim, WeightSlider, EmptyState, InlineCatAdd, Toast, UserChip } from "./misc";
