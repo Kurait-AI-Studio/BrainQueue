@@ -8,6 +8,7 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, ScoreRing, GlassSlider } from "./ui";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -702,20 +703,7 @@ function mergeTasks(local, remote) {
 const VIEWS = ["🔥 Do Now", "⚡ Quick Wins", "🧠 Low Energy", "🗂 By Category", "✅ Done"];
 const DEFAULT_FORM = { title: "", categories: ["Work"], recurrence: "none", urgency: 3, importance: 3, effort: 3, energy: 3, pleasure: 3, notes: "" };
 
-const glass = {
-  background: "rgba(255,255,255,0.04)",
-  backdropFilter: "blur(24px) saturate(180%)",
-  WebkitBackdropFilter: "blur(24px) saturate(180%)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow: "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)",
-};
-const glassStrong = {
-  background: "rgba(255,255,255,0.07)",
-  backdropFilter: "blur(40px) saturate(200%)",
-  WebkitBackdropFilter: "blur(40px) saturate(200%)",
-  border: "1px solid rgba(255,255,255,0.13)",
-  boxShadow: "0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12)",
-};
+// glass + glassStrong tokens now live in ./ui/tokens (imported above).
 
 // Mouse glow — organic morphing shape, color tied to movement speed
 function MouseGlow() {
@@ -848,69 +836,7 @@ function MouseGlow() {
   return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, filter: "blur(26px)" }} />;
 }
 
-function useHover() {
-  const [hovered, setHovered] = useState(false);
-  return [hovered, { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }];
-}
-
-function GlassButton({ onClick, children, accent, style = {}, disabled, className, title }) {
-  const [hov, hovProps] = useHover();
-  const [pressed, setPressed] = useState(false);
-  return (
-    <button onClick={onClick} disabled={disabled} className={className} title={title}
-      onMouseDown={() => setPressed(true)} onMouseUp={() => setPressed(false)}
-      {...hovProps}
-      style={{
-        ...glass, borderRadius: "12px", padding: "0.7rem 1.2rem",
-        color: accent || "#fff",
-        border: `1px solid ${hov ? (accent || "rgba(255,255,255,0.3)") : "rgba(255,255,255,0.1)"}`,
-        background: hov ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.04)",
-        boxShadow: hov ? `0 0 20px ${accent ? accent + "44" : "rgba(255,255,255,0.1)"}, inset 0 1px 0 rgba(255,255,255,0.12)` : glass.boxShadow,
-        cursor: disabled ? "not-allowed" : "pointer",
-        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.82rem",
-        transform: pressed ? "scale(0.97)" : hov ? "scale(1.02)" : "scale(1)",
-        transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
-        opacity: disabled ? 0.4 : 1, ...style,
-      }}>{children}</button>
-  );
-}
-
-function ViewTab({ label, active, onClick }) {
-  const [hov, hovProps] = useHover();
-  return (
-    <button onClick={onClick} {...hovProps} style={{
-      padding: "0.5rem 1rem", borderRadius: "24px",
-      border: active ? "1px solid rgba(232,255,90,0.5)" : "1px solid rgba(255,255,255,0.08)",
-      background: active ? "rgba(232,255,90,0.15)" : hov ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.03)",
-      color: active ? "#e8ff5a" : hov ? "#ddd" : "#666",
-      fontFamily: "'Syne', sans-serif", fontWeight: active ? 700 : 400, fontSize: "0.78rem",
-      cursor: "pointer", whiteSpace: "nowrap",
-      boxShadow: active ? "0 0 16px rgba(232,255,90,0.2), inset 0 1px 0 rgba(255,255,255,0.1)" : "none",
-      transform: hov && !active ? "translateY(-1px)" : "translateY(0)",
-      transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease",
-      backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-    }}>{label}</button>
-  );
-}
-
-function ScoreRing({ score }) {
-  const color = score >= 80 ? "#e8ff5a" : score >= 60 ? "#ffb347" : "#555";
-  return (
-    <div style={{
-      width: "42px", height: "42px", borderRadius: "50%",
-      background: `conic-gradient(${color} ${score * 3.6}deg, rgba(255,255,255,0.06) 0deg)`,
-      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-      boxShadow: `0 0 12px ${color}44`,
-    }}>
-      <div style={{
-        width: "30px", height: "30px", borderRadius: "50%",
-        background: "rgba(10,10,20,0.9)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: "0.65rem", fontWeight: 800, color, fontFamily: "'Syne', sans-serif",
-      }}>{score}</div>
-    </div>
-  );
-}
+// useHover, GlassButton, ViewTab, ScoreRing now live in ./ui (imported above).
 
 function TierBadge({ task, showEst = false }) {
   const { label, icon, color } = TIER[taskTier(task)];
@@ -1018,21 +944,7 @@ function DoneCard({ task, onDelete, onRestore }) {
   );
 }
 
-function GlassSlider({ label, value, onChange, sublabels }) {
-  return (
-    <div style={{ marginBottom: "1.3rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-        <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</label>
-        <span style={{ fontSize: "0.78rem", color: "#e8ff5a", fontWeight: 700 }}>{sublabels[value]}</span>
-      </div>
-      <input type="range" min={1} max={5} value={value} onChange={e => onChange(+e.target.value)} style={{ width: "100%" }} />
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.2rem" }}>
-        <span style={{ fontSize: "0.62rem", color: "#333" }}>{sublabels[1]}</span>
-        <span style={{ fontSize: "0.62rem", color: "#333" }}>{sublabels[5]}</span>
-      </div>
-    </div>
-  );
-}
+// GlassSlider now lives in ./ui/GlassSlider (imported above).
 
 // Default the start to the next round hour, and the duration to the task's effort.
 const nextHour = () => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; };
