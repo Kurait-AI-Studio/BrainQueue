@@ -39,3 +39,7 @@ brainqueue-video-scripts.txt
 
 # eval run artifacts (keep the harness + config, ignore generated results)
 eval/results/
+
+# library build + generated screenshots
+dist-ui
+screenshots
