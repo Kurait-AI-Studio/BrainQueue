@@ -155,3 +155,18 @@ export function formatDate(iso) {
   const pad = (n, l = 2) => String(n).padStart(l, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+
+// Default new-task form values.
+export const DEFAULT_FORM = { title: "", categories: ["Work"], recurrence: "none", urgency: 3, importance: 3, effort: 3, energy: 3, pleasure: 3, notes: "" };
+
+// Ready-made focus-session task sets. `tasks` arrives active + score-sorted, so
+// "Do Now" is just the top slice.
+export function buildProposals(tasks) {
+  const defs = [
+    { id: "donow", icon: "🔥", name: "Do Now", desc: "Top priority right now", pick: ts => ts.slice(0, 4) },
+    { id: "quick", icon: "⚡", name: "Quick Wins", desc: "Fast, low-effort momentum", pick: ts => ts.filter(t => t.effort <= 2).slice(0, 5) },
+    { id: "deep", icon: "⬣", name: "Deep Work", desc: "Heavy focus, few tasks", pick: ts => ts.filter(t => taskTier(t) === "heavy").slice(0, 3) },
+    { id: "easy", icon: "🧠", name: "Low Energy", desc: "Gentle on the brain", pick: ts => ts.filter(t => (t.cognitive_load ?? t.energy ?? 3) <= 2).slice(0, 4) },
+  ];
+  return defs.map(d => ({ ...d, items: d.pick(tasks) })).filter(d => d.items.length);
+}

@@ -13,3 +13,7 @@ export { DoneCard } from "./DoneCard";
 export { XPBar, MiniBars, SideSection, Donut, StatCard, FocusRing, SessionStepper } from "./widgets";
 export { MouseGlow } from "./MouseGlow";
 export { Dim, WeightSlider, EmptyState, InlineCatAdd, Toast, UserChip } from "./misc";
+export { AnalyticsModal } from "./AnalyticsModal";
+export { TaskModal } from "./TaskModal";
+export { SettingsModal } from "./SettingsModal";
+export { SessionSetupModal } from "./SessionSetupModal";

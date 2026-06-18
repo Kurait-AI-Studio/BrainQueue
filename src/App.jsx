@@ -8,7 +8,7 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, GlassSlider, TierBadge, TaskCard, DoneCard, XPBar, MiniBars, SideSection, Donut, StatCard, FocusRing, SessionStepper, MouseGlow, Dim, WeightSlider, EmptyState, InlineCatAdd, Toast, UserChip } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, XPBar, SideSection, FocusRing, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, UserChip, AnalyticsModal, TaskModal, SettingsModal, SessionSetupModal } from "./ui";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ function Splash() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CAT_ACCENT, ENERGY_LABELS, PLEASURE_LABELS, EFFORT_LABELS, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, totalXP, levelInfo, doneSeries, todayScore, weekScore, RECURRENCE_LABELS, RRULE, nextOccurrence, withClassification, TIER, taskTier, fmtDuration } from "./lib/tasks";
+import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, todayScore, weekScore, RRULE, nextOccurrence, withClassification, TIER, taskTier, fmtDuration } from "./lib/tasks";
 
 // localStorage cache is namespaced per user, so signing in as someone else on the
 // same browser never surfaces the previous account's tasks or API key.
@@ -551,7 +551,6 @@ function mergeTasks(local, remote) {
 }
 
 const VIEWS = ["🔥 Do Now", "⚡ Quick Wins", "🧠 Low Energy", "🗂 By Category", "✅ Done"];
-const DEFAULT_FORM = { title: "", categories: ["Work"], recurrence: "none", urgency: 3, importance: 3, effort: 3, energy: 3, pleasure: 3, notes: "" };
 
 // glass + glassStrong tokens now live in ./ui/tokens (imported above).
 
@@ -711,90 +710,7 @@ function ScheduleModal({ task, session, onClose, onResult }) {
   );
 }
 
-function TaskModal({ task, onClose, onSave, customCategories = [], onAddCategory }) {
-  const [form, setForm] = useState(() => task ? { recurrence: "none", ...task, categories: taskCats(task) } : DEFAULT_FORM);
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const [newCat, setNewCat] = useState("");
-  const toggleCat = (c) => setForm(f => {
-    const has = f.categories.includes(c);
-    return { ...f, categories: has ? f.categories.filter(x => x !== c) : [...f.categories, c] };
-  });
-  const addCustom = () => {
-    const c = newCat.trim();
-    if (!c) return;
-    onAddCategory?.(c);
-    setForm(f => ({ ...f, categories: f.categories.includes(c) ? f.categories : [...f.categories, c] }));
-    setNewCat("");
-  };
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
-      <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.2rem", color: "#fff", margin: 0 }}>{task ? "Edit task" : "New task"}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
-        </div>
-        <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Task title…"
-          style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.85rem 1rem", color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace", marginBottom: "0.7rem", outline: "none", boxSizing: "border-box" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.2rem" }}>
-          <TierBadge task={form} showEst />
-          <span style={{ fontSize: "0.66rem", color: "#444" }}>auto-classified from effort & energy</span>
-        </div>
-        <div style={{ marginBottom: "1.3rem" }}>
-          <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Categories <span style={{ textTransform: "none", color: "#444" }}>· pick one or more</span></label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-            {allCategories(customCategories).map(c => {
-              const acc = CAT_ACCENT(c); const active = form.categories.includes(c);
-              return (
-                <button key={c} onClick={() => toggleCat(c)} style={{
-                  padding: "0.3rem 0.8rem", borderRadius: "20px",
-                  border: `1px solid ${active ? acc + "80" : "rgba(255,255,255,0.08)"}`,
-                  background: active ? acc + "18" : "rgba(255,255,255,0.03)",
-                  color: active ? acc : "#444", fontSize: "0.75rem", cursor: "pointer",
-                  fontFamily: "'Syne', sans-serif", fontWeight: 600,
-                  boxShadow: active ? `0 0 10px ${acc}33` : "none",
-                  transition: "background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s",
-                }}>{active ? "✓ " : ""}{c}</button>
-              );
-            })}
-          </div>
-          <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem" }}>
-            <input value={newCat} onChange={e => setNewCat(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
-              placeholder="+ new category…" maxLength={20}
-              style={{ flex: 1, ...glass, borderRadius: "10px", padding: "0.5rem 0.75rem", color: "#e8e8e8", fontSize: "0.78rem", fontFamily: "'DM Mono', monospace", outline: "none", boxSizing: "border-box" }} />
-            <GlassButton onClick={addCustom} style={{ padding: "0.5rem 0.9rem", fontSize: "0.75rem" }}>Add</GlassButton>
-          </div>
-        </div>
-        <div style={{ marginBottom: "1.3rem" }}>
-          <label style={{ fontSize: "0.75rem", color: "#666", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Repeat</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-            {Object.entries(RECURRENCE_LABELS).map(([k, label]) => {
-              const active = (form.recurrence || "none") === k;
-              return (
-                <button key={k} onClick={() => set("recurrence", k)} style={{
-                  padding: "0.3rem 0.8rem", borderRadius: "20px",
-                  border: `1px solid ${active ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.08)"}`,
-                  background: active ? "rgba(232,255,90,0.14)" : "rgba(255,255,255,0.03)",
-                  color: active ? "#e8ff5a" : "#444", fontSize: "0.75rem", cursor: "pointer",
-                  fontFamily: "'Syne', sans-serif", fontWeight: 600, transition: "all 0.15s",
-                }}>{label}</button>
-              );
-            })}
-          </div>
-        </div>
-        <GlassSlider label="Urgency" value={form.urgency} onChange={v => set("urgency", v)} sublabels={{ 1: "Someday", 2: "Eventually", 3: "This month", 4: "This week", 5: "TODAY" }} />
-        <GlassSlider label="Importance" value={form.importance} onChange={v => set("importance", v)} sublabels={{ 1: "Nice to have", 2: "Low", 3: "Medium", 4: "High", 5: "Critical" }} />
-        <GlassSlider label="Effort" value={form.effort} onChange={v => set("effort", v)} sublabels={EFFORT_LABELS} />
-        <GlassSlider label="Energy needed" value={form.energy} onChange={v => set("energy", v)} sublabels={ENERGY_LABELS} />
-        <GlassSlider label="Pleasure" value={form.pleasure ?? 3} onChange={v => set("pleasure", v)} sublabels={PLEASURE_LABELS} />
-        <textarea value={form.notes} onChange={e => set("notes", e.target.value)} placeholder="Notes…"
-          style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.75rem 1rem", color: "#888", fontSize: "0.82rem", fontFamily: "'DM Mono', monospace", resize: "none", height: "64px", outline: "none", marginBottom: "1.2rem", boxSizing: "border-box" }} />
-        <GlassButton onClick={() => { if (form.title.trim() && form.categories.length) onSave({ ...form, category: form.categories[0], id: task?.id || Date.now(), done: task?.done || false, addedAt: task?.addedAt || new Date().toISOString(), doneAt: task?.doneAt || null }); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem", fontSize: "0.9rem" }}>
-          Save task →
-        </GlassButton>
-      </div>
-    </div>
-  );
-}
+// TaskModal now lives in ./ui (imported above).
 
 // Compact −/value/+ stepper for tweaking a 1-5 score inline before adding.
 // Dim now lives in ./ui (imported above).
@@ -912,66 +828,7 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
 
 // WeightSlider now lives in ./ui (imported above).
 
-function SettingsModal({ apiKey, weights, onSave, onClose }) {
-  const [key, setKey] = useState(apiKey);
-  const [w, setW] = useState({ ...DEFAULT_WEIGHTS, ...(weights || {}) });
-  const setWField = (k, v) => setW(prev => ({ ...prev, [k]: v }));
-  const total = w.urgency + w.importance + w.effort + w.energy + (w.pleasure ?? 0);
-  const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
-      <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.2rem", color: "#fff", margin: 0 }}>Settings</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
-        </div>
-
-        <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Anthropic API Key</label>
-        <input type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-..."
-          style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.85rem 1rem", color: "#e8e8e8", fontSize: "0.87rem", fontFamily: "'DM Mono', monospace", marginBottom: "0.5rem", outline: "none", boxSizing: "border-box" }} />
-        <p style={{ color: "#3a3a3a", fontSize: "0.72rem", marginBottom: "1.8rem", lineHeight: 1.6 }}>
-          Get your key at <span style={{ color: "#6b9fff" }}>console.anthropic.com</span>. Only used for Brain Dump.
-        </p>
-
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "1.5rem", marginBottom: "0.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.4rem" }}>
-            <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Score Weights</label>
-            <span style={{ fontSize: "0.68rem", color: total === 100 ? "#6bffb3" : "#ffb347" }}>
-              total: {total} {total !== 100 ? "(normalised)" : ""}
-            </span>
-          </div>
-          <p style={{ fontSize: "0.72rem", color: "#333", marginBottom: "1.2rem", lineHeight: 1.6 }}>
-            Controls what makes a task rise to the top in 🔥 Do Now. Higher weight = more influence on score.
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "0.4rem", marginBottom: "1.2rem" }}>
-            {[["Urgency", w.urgency], ["Importance", w.importance], ["Quick win", w.effort], ["Low energy", w.energy], ["Pleasure", w.pleasure ?? 0]].map(([l, v]) => (
-              <div key={l} style={{ ...glass, borderRadius: "10px", padding: "0.6rem", textAlign: "center" }}>
-                <div style={{ fontSize: "0.62rem", color: "#444", fontFamily: "'Syne', sans-serif", marginBottom: "0.2rem" }}>{l}</div>
-                <div style={{ fontSize: "1rem", fontWeight: 800, color: "#e8ff5a", fontFamily: "'Syne', sans-serif" }}>{pct(v)}%</div>
-              </div>
-            ))}
-          </div>
-          <WeightSlider label="Urgency" value={w.urgency} onChange={v => setWField("urgency", v)} description="deadline proximity" />
-          <WeightSlider label="Importance" value={w.importance} onChange={v => setWField("importance", v)} description="impact if done" />
-          <WeightSlider label="Effort (Quick Win)" value={w.effort} onChange={v => setWField("effort", v)} description="rewards fast tasks" />
-          <WeightSlider label="Energy (Low cost)" value={w.energy} onChange={v => setWField("energy", v)} description="rewards easy brain tasks" />
-          <WeightSlider label="Pleasure" value={w.pleasure ?? 0} onChange={v => setWField("pleasure", v)} description="rewards tasks you enjoy" />
-          <button onClick={() => setW(DEFAULT_WEIGHTS)} style={{
-            background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px",
-            color: "#444", fontSize: "0.72rem", cursor: "pointer", padding: "0.4rem 0.8rem",
-            fontFamily: "'Syne', sans-serif", marginBottom: "1.2rem", transition: "color 0.15s",
-          }}
-            onMouseEnter={e => e.target.style.color="#aaa"} onMouseLeave={e => e.target.style.color="#444"}>
-            Reset to defaults
-          </button>
-        </div>
-
-        <GlassButton onClick={() => { onSave(key, w); onClose(); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
-      </div>
-    </div>
-  );
-}
+// SettingsModal now lives in ./ui (imported above).
 
 function ExportButton({ tasks, weights }) {
   const exportCSV = () => {
@@ -1062,103 +919,7 @@ function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAna
 
 // StatCard now lives in ./ui/widgets (imported above).
 
-function AnalyticsModal({ tasks, customCategories, onClose }) {
-  const [period, setPeriod] = useState("week");
-  const active = tasks.filter(t => !t.done);
-  const done = tasks.filter(t => t.done);
-  const total = tasks.length;
-  const donePct = total ? Math.round((done.length / total) * 100) : 0;
-  const series = doneSeries(tasks, period);
-  const periodCount = series.reduce((s, b) => s + b.count, 0);
-  const lvl = levelInfo(totalXP(tasks));
-  const cats = allCategories(customCategories).filter(c => tasks.some(t => taskCats(t).includes(c)));
-  const pVals = tasks.map(t => t.pleasure).filter(Boolean);
-  const avgP = pVals.length ? pVals.reduce((a, b) => a + b, 0) / pVals.length : 0;
-  const pEmoji = ["—", "😣", "😕", "😐", "🙂", "😍"][Math.round(avgP)] || "—";
-
-  const Section = ({ title, action, children }) => (
-    <div style={{ marginTop: "1.4rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
-        <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#888", fontWeight: 700 }}>{title}</h3>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 120, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "1.5rem 1rem", backdropFilter: "blur(8px)", overflow: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ ...glassStrong, borderRadius: "22px", width: "100%", maxWidth: "660px", padding: "1.8rem", margin: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.3rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>📊 Analytics</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer" }}>×</button>
-        </div>
-
-        <div style={{ display: "flex", gap: "0.6rem", marginBottom: "0.6rem" }}>
-          <StatCard label="Active tasks" value={active.length} accent="#e8ff5a" />
-          <StatCard label="Completed" value={done.length} accent="#6bffb3" />
-          <StatCard label={`Level · ${lvl.title}`} value={lvl.level} accent="#e8ff5a" />
-        </div>
-        <div style={{ display: "flex", gap: "0.6rem" }}>
-          <StatCard label="Done today" value={todayScore(tasks)} accent="#6b9fff" />
-          <StatCard label="Done this week" value={weekScore(tasks)} accent="#6b9fff" />
-          <StatCard label="Avg pleasure" value={pEmoji} accent="#ff8fd0" />
-        </div>
-
-        <Section title="Done vs. to-do">
-          <div style={{ display: "flex", alignItems: "center", gap: "1.4rem" }}>
-            <Donut donePct={donePct} />
-            <div style={{ fontSize: "0.82rem", lineHeight: 2 }}>
-              <div><span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "#6bffb3", marginRight: "0.5rem" }} />{done.length} completed</div>
-              <div><span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "3px", background: "rgba(255,107,107,0.8)", marginRight: "0.5rem" }} />{active.length} still to do</div>
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Completion by category">
-          {cats.length === 0 ? <p style={{ color: "#555", fontSize: "0.8rem" }}>No tasks yet.</p> : cats.map(c => {
-            const inCat = tasks.filter(t => taskCats(t).includes(c));
-            const d = inCat.filter(t => t.done).length;
-            const pct = Math.round((d / inCat.length) * 100);
-            const acc = CAT_ACCENT(c);
-            return (
-              <div key={c} style={{ marginBottom: "0.65rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.25rem" }}>
-                  <span style={{ color: acc, fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>{c}</span>
-                  <span style={{ color: "#777" }}>{d}/{inCat.length} · {pct}%</span>
-                </div>
-                <div style={{ height: "7px", borderRadius: "20px", background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: acc, borderRadius: "20px", boxShadow: `0 0 8px ${acc}66`, transition: "width 0.5s ease" }} />
-                </div>
-              </div>
-            );
-          })}
-        </Section>
-
-        <Section title="Completed over time" action={
-          <div style={{ display: "flex", gap: "0.3rem" }}>
-            {[["week", "This week"], ["month", "This month"]].map(([p, label]) => (
-              <button key={p} onClick={() => setPeriod(p)} style={{
-                padding: "0.25rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.68rem",
-                fontFamily: "'Syne', sans-serif", fontWeight: 700,
-                border: `1px solid ${period === p ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.1)"}`,
-                background: period === p ? "rgba(232,255,90,0.14)" : "transparent",
-                color: period === p ? "#e8ff5a" : "#777",
-              }}>{label}</button>
-            ))}
-          </div>
-        }>
-          <div style={{ ...glass, borderRadius: "14px", padding: "0.9rem 1rem" }}>
-            <MiniBars data={series} height={96} />
-            <p style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.6rem", textAlign: "center" }}>
-              <b style={{ color: "#e8ff5a" }}>{periodCount}</b> task{periodCount === 1 ? "" : "s"} completed {period === "week" ? "this week" : "this month"} · score {periodCount}
-            </p>
-          </div>
-        </Section>
-      </div>
-    </div>
-  );
-}
+// AnalyticsModal now lives in ./ui (imported above).
 
 // ─── Focus sessions + Pomodoro ───────────────────────────────────────────────
 // Lightweight, fully client-side notifications: a soft chime + an in-tab Web
@@ -1186,134 +947,11 @@ const TIER_RANK = { reflex: 0, standard: 1, heavy: 2 };
 
 // Ready-made task sets so the user picks a focus in one tap instead of curating.
 // `tasks` arrives already active + score-sorted, so "Do Now" is just the top slice.
-function buildProposals(tasks) {
-  const defs = [
-    { id: "donow", icon: "🔥", name: "Do Now", desc: "Top priority right now", pick: ts => ts.slice(0, 4) },
-    { id: "quick", icon: "⚡", name: "Quick Wins", desc: "Fast, low-effort momentum", pick: ts => ts.filter(t => t.effort <= 2).slice(0, 5) },
-    { id: "deep", icon: "⬣", name: "Deep Work", desc: "Heavy focus, few tasks", pick: ts => ts.filter(t => taskTier(t) === "heavy").slice(0, 3) },
-    { id: "easy", icon: "🧠", name: "Low Energy", desc: "Gentle on the brain", pick: ts => ts.filter(t => (t.cognitive_load ?? t.energy ?? 3) <= 2).slice(0, 4) },
-  ];
-  return defs.map(d => ({ ...d, items: d.pick(tasks) })).filter(d => d.items.length);
-}
+// buildProposals now lives in ./ui (imported above).
 
 // SessionStepper now lives in ./ui/widgets (imported above).
 
-function SessionSetupModal({ tasks, onStart, onClose }) {
-  const proposals = buildProposals(tasks);
-  const [mode, setMode] = useState("sets");           // sets | edit
-  const [picked, setPicked] = useState(() => proposals[0]?.id || null);
-  const [selectedIds, setSelectedIds] = useState(() => new Set((proposals[0]?.items || []).map(t => t.id)));
-  const [work, setWork] = useState(25);
-  const [brk, setBrk] = useState(5);
-  const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState("All");
-
-  const selectProposal = (p) => { setPicked(p.id); setSelectedIds(new Set(p.items.map(t => t.id))); };
-  const toggle = (id) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-
-  const selectedTasks = tasks.filter(t => selectedIds.has(t.id));
-  const totalMin = selectedTasks.reduce((s, t) => s + (t.est_minutes || 25), 0);
-  const cats = ["All", ...new Set(tasks.flatMap(taskCats))];
-  const visible = tasks.filter(t =>
-    (catFilter === "All" || taskCats(t).includes(catFilter)) &&
-    (!search.trim() || t.title.toLowerCase().includes(search.toLowerCase())));
-  const start = () => { const ids = [...selectedIds]; if (ids.length) onStart({ taskIds: ids, work, brk }); };
-
-  const taskRow = (t) => {
-    const on = selectedIds.has(t.id);
-    return (
-      <button key={t.id} onClick={() => toggle(t.id)} style={{
-        ...glass, borderRadius: "10px", padding: "0.6rem 0.8rem", display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer", textAlign: "left", width: "100%",
-        border: `1px solid ${on ? "rgba(232,255,90,0.5)" : "rgba(255,255,255,0.07)"}`, background: on ? "rgba(232,255,90,0.1)" : "rgba(255,255,255,0.03)",
-      }}>
-        <span style={{ color: on ? "#e8ff5a" : "#444", fontSize: "0.95rem" }}>{on ? "✓" : "○"}</span>
-        <span style={{ flex: 1, minWidth: 0, color: "#ddd", fontSize: "0.85rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-        <TierBadge task={t} showEst />
-      </button>
-    );
-  };
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem 1rem", backdropFilter: "blur(8px)" }}>
-      <div onClick={e => e.stopPropagation()} style={{ ...glassStrong, borderRadius: "24px", width: "100%", maxWidth: "680px", maxHeight: "90vh", overflow: "auto", padding: "2.2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.5rem", color: "#fff", margin: 0 }}>▶ Start a focus session</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.6rem", cursor: "pointer" }}>×</button>
-        </div>
-
-        {tasks.length === 0 ? (
-          <p style={{ color: "#666", fontSize: "0.9rem", padding: "2rem 0", textAlign: "center" }}>No active tasks yet — add some first.</p>
-        ) : mode === "sets" ? (
-          <>
-            <p style={{ color: "#777", fontSize: "0.86rem", margin: "0.3rem 0 1.4rem" }}>Pick a set and go — tweak it only if you want to.</p>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "0.7rem", marginBottom: "1.6rem" }}>
-              {proposals.map(p => {
-                const on = picked === p.id;
-                const mins = p.items.reduce((s, t) => s + (t.est_minutes || 25), 0);
-                return (
-                  <button key={p.id} onClick={() => selectProposal(p)} style={{
-                    ...glass, borderRadius: "16px", padding: "1rem 1.1rem", cursor: "pointer", textAlign: "left",
-                    border: `1px solid ${on ? "rgba(232,255,90,0.55)" : "rgba(255,255,255,0.08)"}`,
-                    background: on ? "rgba(232,255,90,0.09)" : "rgba(255,255,255,0.03)",
-                    boxShadow: on ? "0 0 22px rgba(232,255,90,0.12)" : "none", transition: "all 0.18s",
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.05rem", color: on ? "#e8ff5a" : "#eee" }}>{p.icon} {p.name}</span>
-                      {on && <span style={{ color: "#e8ff5a", fontSize: "0.9rem" }}>✓</span>}
-                    </div>
-                    <div style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.25rem" }}>{p.desc}</div>
-                    <div style={{ fontSize: "0.68rem", color: "#555", marginTop: "0.6rem" }}>{p.items.length} task{p.items.length === 1 ? "" : "s"} · ~{fmtDuration(mins)}</div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
-              <span style={{ fontSize: "0.74rem", color: "#888", fontFamily: "'Syne', sans-serif" }}>
-                {selectedTasks.length} task{selectedTasks.length === 1 ? "" : "s"} selected · ~{fmtDuration(totalMin)}
-              </span>
-              <button onClick={() => setMode("edit")} style={{ ...glass, borderRadius: "20px", padding: "0.35rem 0.9rem", color: "#6b9fff", cursor: "pointer", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.74rem", border: "1px solid rgba(107,159,255,0.3)" }}>✎ Modify set</button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginBottom: "1.5rem", maxHeight: "180px", overflow: "auto" }}>
-              {selectedTasks.length === 0 ? <p style={{ color: "#555", fontSize: "0.8rem" }}>Nothing selected — pick a set or modify.</p> : selectedTasks.map(taskRow)}
-            </div>
-
-            <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.5rem" }}>
-              <SessionStepper label="Focus" value={work} set={setWork} min={5} max={90} />
-              <SessionStepper label="Break" value={brk} set={setBrk} min={5} max={30} />
-            </div>
-            <GlassButton onClick={start} disabled={!selectedTasks.length} accent="#e8ff5a" style={{ width: "100%", padding: "1rem", fontSize: "0.95rem" }}>Enter focus →</GlassButton>
-          </>
-        ) : (
-          <>
-            <p style={{ color: "#777", fontSize: "0.86rem", margin: "0.3rem 0 1rem" }}>Search or filter by category, then tap tasks to add or remove.</p>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…" autoFocus
-              style={{ width: "100%", ...glass, borderRadius: "12px", padding: "0.8rem 1rem", color: "#e8e8e8", fontSize: "0.88rem", fontFamily: "'DM Mono', monospace", outline: "none", boxSizing: "border-box", marginBottom: "0.8rem" }} />
-            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-              {cats.map(c => {
-                const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c); const on = catFilter === c;
-                return (
-                  <button key={c} onClick={() => setCatFilter(c)} style={{
-                    padding: "0.28rem 0.75rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem", fontFamily: "'Syne', sans-serif", fontWeight: 600,
-                    border: `1px solid ${on ? acc + "70" : "rgba(255,255,255,0.07)"}`, background: on ? acc + "16" : "transparent", color: on ? acc : "#555",
-                  }}>{c}</button>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginBottom: "1.3rem", maxHeight: "300px", overflow: "auto" }}>
-              {visible.length === 0 ? <p style={{ color: "#555", fontSize: "0.8rem" }}>No matching tasks.</p> : visible.map(taskRow)}
-            </div>
-            <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-              <span style={{ flex: 1, fontSize: "0.74rem", color: "#888", fontFamily: "'Syne', sans-serif" }}>{selectedTasks.length} selected · ~{fmtDuration(totalMin)}</span>
-              <GlassButton onClick={() => { setPicked(null); setMode("sets"); }} accent="#e8ff5a" style={{ padding: "0.7rem 1.6rem" }}>Done →</GlassButton>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+// SessionSetupModal now lives in ./ui (imported above).
 
 function FocusMode({ session, tasks, onMarkDone, onExit }) {
   const [completed, setCompleted] = useState([]);
