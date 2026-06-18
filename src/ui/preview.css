@@ -1,0 +1,5 @@
+/* Stylesheet for design-sync previews & designs: loads the brand fonts and the
+   dark canvas BrainQueue's glass components are designed against. */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+:root { color-scheme: dark; }
+html, body { background: #060610; color: #e0e0e0; font-family: 'DM Mono', monospace; }
