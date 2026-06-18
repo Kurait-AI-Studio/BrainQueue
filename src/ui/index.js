@@ -10,3 +10,4 @@ export { GlassSlider } from "./GlassSlider";
 export { TierBadge } from "./TierBadge";
 export { TaskCard } from "./TaskCard";
 export { DoneCard } from "./DoneCard";
+export { XPBar, MiniBars, SideSection, Donut, StatCard, FocusRing, SessionStepper } from "./widgets";
