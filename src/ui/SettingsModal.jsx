@@ -4,9 +4,9 @@ import { GlassButton } from "./GlassButton";
 import { WeightSlider } from "./misc";
 import { DEFAULT_WEIGHTS } from "../lib/tasks";
 
-// Settings: the Anthropic API key (for Brain Dump) and the score-weight sliders.
-export function SettingsModal({ apiKey, weights, onSave, onClose }) {
-  const [key, setKey] = useState(apiKey);
+// Settings: the score-weight sliders. (Brain Dump runs through a server-side edge
+// function now, so there's no user-facing API key.)
+export function SettingsModal({ weights, onSave, onClose }) {
   const [w, setW] = useState({ ...DEFAULT_WEIGHTS, ...(weights || {}) });
   const setWField = (k, v) => setW(prev => ({ ...prev, [k]: v }));
   const total = w.urgency + w.importance + w.effort + w.energy + (w.pleasure ?? 0);
@@ -20,14 +20,7 @@ export function SettingsModal({ apiKey, weights, onSave, onClose }) {
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
         </div>
 
-        <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em", display: "block", marginBottom: "0.5rem" }}>Anthropic API Key</label>
-        <input type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-..."
-          style={{ width: "100%", ...glass, borderRadius: "10px", padding: "0.85rem 1rem", color: "#e8e8e8", fontSize: "0.87rem", fontFamily: "'DM Mono', monospace", marginBottom: "0.5rem", outline: "none", boxSizing: "border-box" }} />
-        <p style={{ color: "#3a3a3a", fontSize: "0.72rem", marginBottom: "1.8rem", lineHeight: 1.6 }}>
-          Get your key at <span style={{ color: "#6b9fff" }}>console.anthropic.com</span>. Only used for Brain Dump.
-        </p>
-
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "1.5rem", marginBottom: "0.5rem" }}>
+        <div style={{ marginBottom: "0.5rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.4rem" }}>
             <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Score Weights</label>
             <span style={{ fontSize: "0.68rem", color: total === 100 ? "#6bffb3" : "#ffb347" }}>
@@ -60,7 +53,7 @@ export function SettingsModal({ apiKey, weights, onSave, onClose }) {
           </button>
         </div>
 
-        <GlassButton onClick={() => { onSave(key, w); onClose(); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
+        <GlassButton onClick={() => { onSave(w); onClose(); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
       </div>
     </div>
   );

@@ -245,8 +245,14 @@ import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENC
 // same browser never surfaces the previous account's tasks or API key.
 const stateKey = (uid) => `brainqueue_v4_${uid || "anon"}`;
 function loadState(uid) {
-  try { const r = localStorage.getItem(stateKey(uid)); return r ? JSON.parse(r) : { tasks: [], apiKey: "", weights: DEFAULT_WEIGHTS }; }
-  catch { return { tasks: [], apiKey: "", weights: DEFAULT_WEIGHTS }; }
+  try {
+    const r = localStorage.getItem(stateKey(uid));
+    const s = r ? JSON.parse(r) : { tasks: [], weights: DEFAULT_WEIGHTS };
+    // Brain Dump now runs through a server-side edge function, so no Anthropic key is
+    // ever stored in the browser. Purge any key left over from the old client-side flow.
+    if (s.apiKey) { delete s.apiKey; saveState(uid, s); }
+    return s;
+  } catch { return { tasks: [], weights: DEFAULT_WEIGHTS }; }
 }
 function saveState(uid, s) { try { localStorage.setItem(stateKey(uid), JSON.stringify(s)); } catch {} }
 
@@ -267,7 +273,6 @@ function loadOrAdoptState(uid) {
     if (!legacy?.tasks?.length) return current;
     const adopted = {
       tasks: legacy.tasks,
-      apiKey: current.apiKey || legacy.apiKey || "",
       weights: current.weights || legacy.weights || DEFAULT_WEIGHTS,
     };
     saveState(uid, adopted);
@@ -771,7 +776,7 @@ const editTypeFor = (field) =>
   : "field_edit";
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
+function BrainDumpModal({ onClose, onTasksAdded, weights }) {
   const [dump, setDump] = useState("");
   const [loading, setLoading] = useState(false);
   const [parsed, setParsed] = useState(null);
@@ -786,7 +791,6 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
 
   const parseDump = async () => {
     if (!dump.trim()) return;
-    if (!apiKey.trim()) { setError("No API key — add one in Settings (⚙️) first."); return; }
     setLoading(true); setError(null);
     const dumpId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
     dumpIdRef.current = dumpId;
@@ -795,18 +799,27 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
     logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS } });
     const t0 = performance.now();
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      // Call the server-side "brain-dump" edge function (which holds the Anthropic
+      // key) with the user's session token — the key is never in the browser.
+      const sb = getSupabase();
+      const { data: { session } = { session: null } } = sb ? await sb.auth.getSession() : { data: { session: null } };
+      if (!session) throw new Error("Please sign in again to run Brain Dump.");
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brain-dump`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey.trim(), "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
         body: JSON.stringify({
-          model: BRAIN_DUMP_MODEL,
-          max_tokens: BRAIN_DUMP_MAX_TOKENS,
+          dump,
           system: BRAIN_DUMP_SYSTEM,
           // Structured outputs: the model is constrained to this schema, so the
           // response text is guaranteed-valid JSON — no markdown fences, no
           // regex scraping, no truncation surprises.
-          output_config: { format: { type: "json_schema", schema: TASK_LIST_SCHEMA } },
-          messages: [{ role: "user", content: dump }],
+          schema: TASK_LIST_SCHEMA,
+          model: BRAIN_DUMP_MODEL,
+          max_tokens: BRAIN_DUMP_MAX_TOKENS,
         })
       });
       const rawText = await response.text();
@@ -1273,7 +1286,7 @@ function MainApp({ session }) {
   try { setConsentState(localStorage.getItem(`bq_consent_${userId}`) || "product-only"); } catch { /* default stands */ }
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
-  const { tasks, apiKey, weights = DEFAULT_WEIGHTS, customCategories = [] } = state;
+  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [] } = state;
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
   // Custom categories live in local storage and don't sync directly — but tasks
@@ -1655,8 +1668,8 @@ function MainApp({ session }) {
         </div>
       </div>
 
-      {showSettings && <SettingsModal apiKey={apiKey} weights={weights} onSave={(k, w) => update({ apiKey: k, weights: w })} onClose={() => setShowSettings(false)} />}
-      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} apiKey={apiKey} weights={weights} />}
+      {showSettings && <SettingsModal weights={weights} onSave={(w) => update({ weights: w })} onClose={() => setShowSettings(false)} />}
+      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={weights} />}
       {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} />}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
       {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
