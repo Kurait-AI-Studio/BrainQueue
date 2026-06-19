@@ -10,6 +10,12 @@ export const CATEGORIES = ["Health", "Work", "Admin", "Social", "Finance", "Lear
 // Run `node eval/run-eval.mjs` to compare candidates, then set the winner here.
 export const BRAIN_DUMP_MODEL = "claude-sonnet-4-6";
 
+// Version stamp for the prompt + schema below. Bump whenever BRAIN_DUMP_SYSTEM or
+// the schema changes — telemetry stamps it on every parse event so we can ask, months
+// later, "was prompt v2 better than v1?" (Telemetry Capture Spec, principle 2). The
+// matching row lives in the prompt_registry table (migration 0006).
+export const BRAIN_DUMP_PROMPT_VERSION = "braindump-v1";
+
 // max_tokens for the call. 8000 comfortably fits a long dump's worth of structured
 // tasks without truncating (the old 4000 could clip large lists).
 export const BRAIN_DUMP_MAX_TOKENS = 8000;

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   CATEGORIES,
   BRAIN_DUMP_MODEL,
+  BRAIN_DUMP_PROMPT_VERSION,
   BRAIN_DUMP_MAX_TOKENS,
   BRAIN_DUMP_SYSTEM,
   TASK_LIST_SCHEMA,
@@ -21,6 +22,30 @@ import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard
 // stamp user_id without threading it through every call site.
 let _userId = null;
 const setActiveUser = (id) => { _userId = id; };
+
+// ─── Telemetry envelope state ────────────────────────────────────────────────
+// The event envelope (Telemetry Capture Spec §"event envelope") carries fields you
+// can never reconstruct after the fact: a monotonic per-user sequence, the schema +
+// app version, the surface, consent state, and the user's local time/zone.
+const SCHEMA_VERSION = 1;            // joins to schema_registry; bump with envelope changes
+const APP_VERSION = "0.0.0";         // attribute behavior to a build
+let _consentState = "product-only";  // full | product-only | none — tag every event
+let _activeSessionId = null;         // set while a focus session is live; groups its events
+let _activeSurface = "web";          // coarse screen hint (web/web:focus/web:braindump…)
+const setConsentState = (c) => { _consentState = c; };
+const setActiveSessionId = (id) => { _activeSessionId = id; };
+const setSurface = (s) => { _activeSurface = s; };
+
+// Monotonic sequence per user, persisted so ordering survives reloads and equal
+// timestamps (principle 5). localStorage-backed; falls back to a timestamp if blocked.
+function nextSequence() {
+  try {
+    const k = `bq_seq_${_userId}`;
+    const n = (parseInt(localStorage.getItem(k), 10) || 0) + 1;
+    localStorage.setItem(k, String(n));
+    return n;
+  } catch { return Date.now(); }
+}
 
 const OAUTH_PROVIDERS = [
   { id: "google", label: "Continue with Google" },
@@ -337,8 +362,26 @@ async function deleteRemoteTask(id) {
 function logEvent(eventType, taskId = null, context = null) {
   const sb = getSupabase();
   if (!sb || !_userId) return;
+  const now = new Date();
+  let tz; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { tz = null; }
+  const uuid = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : undefined;
   sb.from("task_events")
-    .insert({ user_id: _userId, task_id: taskId != null ? String(taskId) : null, event_type: eventType, event_at: new Date().toISOString(), context })
+    .insert({
+      event_id: uuid,
+      user_id: _userId,
+      task_id: taskId != null ? String(taskId) : null,
+      session_id: _activeSessionId,
+      event_type: eventType,
+      event_at: now.toISOString(),          // ts_utc — canonical ordering
+      ts_local: now.toLocaleString("sv"),   // local wall-clock (sortable "YYYY-MM-DD HH:mm:ss")
+      tz,
+      sequence_number: nextSequence(),
+      schema_version: SCHEMA_VERSION,
+      app_version: APP_VERSION,
+      surface: _activeSurface,
+      consent_state: _consentState,
+      context,                              // event-specific payload
+    })
     .then(({ error }) => { if (error) console.warn("task_events:", error.message); });
 }
 
@@ -715,16 +758,42 @@ function ScheduleModal({ task, session, onClose, onResult }) {
 // Compact −/value/+ stepper for tweaking a 1-5 score inline before adding.
 // Dim now lives in ./ui (imported above).
 
+// Fields we diff between the AI's proposal and what the user finally keeps. The gap
+// between these two IS the preference dataset (Telemetry Capture Spec §1).
+const DUMP_DIFF_FIELDS = ["title", "category", "urgency", "importance", "effort", "energy", "pleasure", "est_minutes", "cognitive_load", "ai_delegatable", "multi_step", "recurrence"];
+// Coarse edit_type tag at capture time (spec: ideally a cheap classification call;
+// a heuristic is far better than nothing and lets us filter typos from signal later).
+const editTypeFor = (field) =>
+  field === "title" ? "reword"
+  : field === "category" ? "retag"
+  : field === "recurrence" ? "reschedule"
+  : ["urgency", "importance", "effort", "energy", "pleasure"].includes(field) ? "reprioritize"
+  : "field_edit";
+const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
   const [dump, setDump] = useState("");
   const [loading, setLoading] = useState(false);
   const [parsed, setParsed] = useState(null);
   const [error, setError] = useState(null);
+  // Capture state for the correction goldmine.
+  const dumpIdRef = useRef(null);          // ties brain_dump_created → parse_* → final_committed
+  const originalRef = useRef(null);        // the AI's untouched v1, to diff against on commit
+  const parsedAtRef = useRef(0);           // when the preview appeared (time-to-commit clock)
+
+  // Tag this surface for the envelope while the modal is mounted.
+  useEffect(() => { setSurface("web:braindump"); return () => setSurface("web"); }, []);
 
   const parseDump = async () => {
     if (!dump.trim()) return;
     if (!apiKey.trim()) { setError("No API key — add one in Settings (⚙️) first."); return; }
     setLoading(true); setError(null);
+    const dumpId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+    dumpIdRef.current = dumpId;
+    // Principle 1 (log raw input) + 2 (version the generator).
+    logEvent("brain_dump_created", null, { dump_id: dumpId, raw_text: dump, char_count: dump.length, input_method: "typed" });
+    logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS } });
+    const t0 = performance.now();
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -749,17 +818,73 @@ function BrainDumpModal({ onClose, onTasksAdded, apiKey, weights }) {
       const result = JSON.parse(textBlock.text);
       const tasks = (result.tasks || []).map(sanitizeTask);
       if (!tasks.length) throw new Error("No actionable tasks found in that dump.");
-      setParsed(tasks);
-    } catch (e) { setError(e.message); }
+      // Stable per-task ref so edits/removals stay matched to the original across the diff.
+      const withPid = tasks.map((t, i) => ({ ...t, _pid: `${dumpId}:${i}` }));
+      // Principle 1: the raw model output is irreplaceable. Estimate cost from usage.
+      const usage = data.usage || {};
+      const cost_est = usage.input_tokens != null
+        ? +(usage.input_tokens / 1e6 * 3 + (usage.output_tokens || 0) / 1e6 * 15).toFixed(5) : null;
+      logEvent("parse_result", null, {
+        dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL,
+        raw_model_output: textBlock.text, parsed_tasks: tasks, latency_ms: Math.round(performance.now() - t0),
+        tokens_in: usage.input_tokens ?? null, tokens_out: usage.output_tokens ?? null, cost_est,
+      });
+      originalRef.current = withPid.map(t => ({ ...t }));   // deep-enough snapshot of v1
+      parsedAtRef.current = performance.now();
+      setParsed(withPid);
+    } catch (e) {
+      setError(e.message);
+      logEvent("parse_failed", null, { dump_id: dumpId, error: String(e.message).slice(0, 300), latency_ms: Math.round(performance.now() - t0) });
+    }
     setLoading(false);
   };
 
   const updateTask = (i, patch) => setParsed(p => p.map((t, j) => j === i ? { ...t, ...patch } : t));
   const removeTask = (i) => setParsed(p => p.filter((_, j) => j !== i));
 
+  // The v1 → final delta. Every kept-unchanged field is a positive label (principle 7),
+  // every edit is a preference pair (principle 1) — log both, fully reconstructable.
+  const logCorrections = () => {
+    const dumpId = dumpIdRef.current;
+    const orig = originalRef.current || [];
+    const finalByPid = new Map(parsed.map(t => [t._pid, t]));
+    let nEdits = 0, nRemoved = 0, nAccepted = 0;
+    const editTypes = {};
+    for (const o of orig) {
+      const f = finalByPid.get(o._pid);
+      if (!f) {
+        nRemoved++; editTypes.delete = (editTypes.delete || 0) + 1;
+        logEvent("task_edited", null, { dump_id: dumpId, task_ref: o._pid, edit_type: "delete", field: null });
+        continue;
+      }
+      const changed = DUMP_DIFF_FIELDS.filter(field => !sameVal(o[field], f[field]));
+      if (changed.length === 0) {
+        nAccepted++;
+        logEvent("task_accepted_unchanged", null, { dump_id: dumpId, task_ref: o._pid, fields: DUMP_DIFF_FIELDS });
+      } else {
+        for (const field of changed) {
+          nEdits++;
+          const et = editTypeFor(field);
+          editTypes[et] = (editTypes[et] || 0) + 1;
+          logEvent("task_edited", null, { dump_id: dumpId, task_ref: o._pid, field, before: o[field] ?? null, after: f[field] ?? null, edit_type: et });
+        }
+      }
+    }
+    logEvent("final_committed", null, {
+      dump_id: dumpId, n_tasks: parsed.length, n_edits: nEdits, n_removed: nRemoved, n_accepted: nAccepted,
+      edit_types: editTypes, time_to_commit_ms: Math.round(performance.now() - parsedAtRef.current),
+    });
+  };
+
   const confirmAdd = () => {
+    try { logCorrections(); } catch { /* telemetry must never block the commit */ }
     const now = new Date().toISOString();
-    onTasksAdded(parsed.map((t, i) => ({ ...t, id: Date.now() + i, done: false, addedAt: now, doneAt: null })));
+    // Strip the internal _pid before the tasks enter the app/db.
+    onTasksAdded(parsed.map((t, i) => {
+      const task = { ...t, id: Date.now() + i, done: false, addedAt: now, doneAt: null };
+      delete task._pid;
+      return task;
+    }));
     onClose();
   };
 
@@ -1083,6 +1208,10 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
 function MainApp({ session }) {
   const userId = session.user.id;
   setActiveUser(userId); // ensure row helpers stamp user_id before any task write
+  // Load this user's data-use consent (defaults to "product-only" — lawful basis to
+  // run BrainQueue, but NOT to train on their data). Every event is tagged with it so a
+  // future learning loop can trivially filter to the consented subset (principle 6).
+  try { setConsentState(localStorage.getItem(`bq_consent_${userId}`) || "product-only"); } catch { /* default stands */ }
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, apiKey, weights = DEFAULT_WEIGHTS, customCategories = [] } = state;
@@ -1219,6 +1348,16 @@ function MainApp({ session }) {
     commit(ts => { isNew = !ts.find(x => x.id === t.id); return isNew ? [...ts, t] : ts.map(x => x.id === t.id ? t : x); });
     upsertTask(t);
     logEvent(isNew ? "task_created" : "task_edited", t.id, { tier: taskTier(t), category: t.category });
+    if (isNew) {
+      // Manual tasks get a classification snapshot too, so the labeled dataset covers
+      // every task's origin, not just brain-dumped ones (principle 3).
+      logEvent("task_features", t.id, {
+        est_minutes: t.est_minutes, cognitive_load: t.cognitive_load,
+        ai_delegatable: t.ai_delegatable, multi_step: t.multi_step,
+        tier: taskTier(t), category: t.category, urgency: t.urgency,
+        importance: t.importance, effort: t.effort, energy: t.energy, source: "manual",
+      });
+    }
     setShowAdd(false); setEditTask(null);
   }, [commit]);
 
@@ -1268,7 +1407,17 @@ function MainApp({ session }) {
   const addBulk = useCallback((newTasks) => {
     const classified = newTasks.map(withClassification);
     commit(ts => [...ts, ...classified]);
-    classified.forEach(t => upsertTask(t));
+    classified.forEach(t => {
+      upsertTask(t);
+      // The historical classification decision, snapshotted at create time (principle 3):
+      // eval needs the real decision the system made then, not one re-derived later.
+      logEvent("task_features", t.id, {
+        est_minutes: t.est_minutes, cognitive_load: t.cognitive_load,
+        ai_delegatable: t.ai_delegatable, multi_step: t.multi_step,
+        tier: taskTier(t), category: t.category, urgency: t.urgency,
+        importance: t.importance, effort: t.effort, energy: t.energy, source: "brain_dump",
+      });
+    });
     logEvent("braindump_added", null, { count: classified.length });
   }, [commit]);
 
@@ -1276,6 +1425,8 @@ function MainApp({ session }) {
     setShowSessionSetup(false);
     try { if (typeof Notification !== "undefined" && Notification.permission === "default") await Notification.requestPermission(); } catch { /* ignore */ }
     const id = await insertSession(taskIds);
+    setActiveSessionId(id);   // group every focus/pomodoro event under this session
+    setSurface("web:focus");
     logEvent("session_started", null, { count: taskIds.length, work, brk });
     setFocusSession({ id, taskIds, work, brk });
   }, []);
@@ -1288,6 +1439,8 @@ function MainApp({ session }) {
       }
       return null;
     });
+    setActiveSessionId(null);
+    setSurface("web");
   }, []);
 
   const active = tasks.filter(t => !t.done);
