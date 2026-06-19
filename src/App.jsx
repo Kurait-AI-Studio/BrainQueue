@@ -9,7 +9,7 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, XPBar, SideSection, FocusRing, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, UserChip, AnalyticsModal, TaskModal, SettingsModal, SessionSetupModal } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, XPBar, SideSection, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, UserChip, AnalyticsModal, TaskModal, SettingsModal, SessionSetupModal } from "./ui";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -1119,9 +1119,11 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
     if (phase === "work") {
       chime(660); notify("Break time", "Step away and breathe.");
       setPomos(p => p + 1); logEvent("pomodoro_completed", null, { minutes: session.work });
+      logEvent("break_started", null, { trigger: "pomodoro", break_minutes: session.brk });
       setPhase("break"); setSecondsLeft(session.brk * 60);
     } else {
       chime(880); notify("Back to focus", "Next round — let's go.");
+      logEvent("break_ended", null, { trigger: "timer" });
       setPhase("work"); setSecondsLeft(session.work * 60);
     }
   }, [secondsLeft, phase, session.work, session.brk]);
@@ -1133,6 +1135,20 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
     const next = [...completed, current.id];
     setCompleted(next);
     if (session.taskIds.every(id => next.includes(id))) setPhase("done");
+  };
+  // Manual break: the user chooses to step away. Logged so we can later learn each
+  // user's natural focus rhythm (Telemetry Capture Spec §3 — break_started/break_ended).
+  const takeBreak = () => {
+    chime(660); notify("Break", "Step away and breathe.");
+    logEvent("break_started", null, { trigger: "manual", break_minutes: session.brk });
+    flipping.current = true;
+    setPhase("break"); setSecondsLeft(session.brk * 60); setRunning(true);
+  };
+  const endBreak = () => {
+    chime(880);
+    logEvent("break_ended", null, { trigger: "manual" });
+    flipping.current = true;
+    setPhase("work"); setSecondsLeft(session.work * 60);
   };
 
   const shell = { position: "fixed", inset: 0, zIndex: 300, background: "radial-gradient(900px 600px at 50% 35%, rgba(232,255,90,0.05), transparent 60%), #060610", color: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "2rem", fontFamily: "'DM Mono', monospace" };
@@ -1169,32 +1185,75 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
     );
   }
 
-  // WORK / BREAK
+  // WORK / BREAK — calm, single-task screen: a timer bar up top, one focus card below.
   const isBreak = phase === "break";
-  const total = isBreak ? session.brk * 60 : session.work * 60;
-  const pct = total ? ((total - secondsLeft) / total) * 100 : 0;
   const accent = isBreak ? "#6b9fff" : "#e8ff5a";
+  const taskTotal = session.taskIds.length;
+  const taskPos = Math.min(completed.length + 1, taskTotal);
+  const tier = current ? TIER[taskTier(current)] : null;
+  const progPct = taskTotal ? (completed.length / taskTotal) * 100 : 0;
+
+  const stage = { ...shell, justifyContent: "flex-start", padding: 0, overflow: "hidden" };
+  const topbar = { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.1rem 1.6rem", boxSizing: "border-box" };
+  const pill = { display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "0.05rem", padding: "0.4rem 1.3rem", borderRadius: "14px", ...glass, border: `1px solid ${accent}44`, opacity: running ? 1 : 0.55, transition: "opacity .3s" };
+  const card = { ...glassStrong, position: "relative", width: "100%", maxWidth: "620px", borderRadius: "24px", padding: "2.6rem 2rem 2rem", border: `1px solid ${accent}22`, boxShadow: `0 0 80px ${accent}10`, textAlign: "center" };
+  const badge = { width: "54px", height: "54px", margin: "0 auto 1.4rem", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: "1.4rem", background: `${accent}14`, border: `1px solid ${accent}55`, boxShadow: `0 0 24px ${accent}33` };
+  const eyebrow = { fontFamily: "'Syne', sans-serif", color: accent, letterSpacing: "0.28em", textTransform: "uppercase", fontSize: "0.66rem", opacity: 0.85, margin: 0 };
+  const btn = { padding: "0.8rem 1.2rem", flex: "1 1 auto" };
+
   return (
-    <div style={shell}>
-      <button onClick={finish} title="End session"
-        style={{ position: "absolute", top: "1.2rem", right: "1.4rem", background: "none", border: "none", color: "#555", fontSize: "1.6rem", cursor: "pointer" }}>×</button>
-
-      <p style={{ fontFamily: "'Syne', sans-serif", color: accent, letterSpacing: "0.3em", textTransform: "uppercase", fontSize: "0.72rem", marginBottom: "0.4rem" }}>
-        {isBreak ? "Breathe" : "Focus"}{pomos > 0 ? ` · ${pomos} done` : ""}
-      </p>
-      <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.3rem, 4vw, 2rem)", color: "#fff", margin: "0 0 1.4rem", maxWidth: "640px", lineHeight: 1.25 }}>
-        {isBreak ? "Look away from the screen." : (current ? current.title : "All tasks done — wrap up.")}
-      </h1>
-
-      <FocusRing pct={pct} color={accent} big={mmss(secondsLeft)} sub={isBreak ? "break" : (current ? `${TIER[taskTier(current)].icon} ${TIER[taskTier(current)].label} · ~${fmtDuration(current.est_minutes || 25)}` : "")} />
-
-      <div style={{ display: "flex", gap: "0.7rem", marginTop: "2rem", flexWrap: "wrap", justifyContent: "center" }}>
-        <GlassButton onClick={() => setRunning(r => !r)} style={{ padding: "0.7rem 1.3rem" }}>{running ? "⏸ Pause" : "▶ Resume"}</GlassButton>
-        {!isBreak && current && <GlassButton onClick={doneCurrent} accent="#6bffb3" style={{ padding: "0.7rem 1.3rem" }}>✓ Done</GlassButton>}
-        {isBreak && <GlassButton onClick={() => { flipping.current = true; chime(880); setPhase("work"); setSecondsLeft(session.work * 60); }} style={{ padding: "0.7rem 1.3rem" }}>Skip break →</GlassButton>}
-        <GlassButton onClick={finish} style={{ padding: "0.7rem 1.3rem" }}>End</GlassButton>
+    <div style={stage}>
+      {/* top bar: wordmark · timer · exit */}
+      <div style={topbar}>
+        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.05rem", color: "#fff" }}>Brain<span style={{ color: "#e8ff5a" }}>Queue</span></span>
+        <div style={pill}>
+          <span style={{ fontSize: "1.15rem", fontWeight: 700, color: "#fff", letterSpacing: "0.02em" }}>{mmss(secondsLeft)}</span>
+          <span style={{ fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: accent }}>{running ? (isBreak ? "Break time" : "Focus time") : "Paused"}</span>
+        </div>
+        <button onClick={finish} title="End session"
+          style={{ background: "none", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#888", fontSize: "0.74rem", padding: "0.45rem 0.8rem", cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>✕ Exit Focus</button>
       </div>
-      {!isBreak && <p style={{ color: "#444", fontSize: "0.74rem", marginTop: "1.2rem" }}>{completed.length} of {session.taskIds.length} done this session</p>}
+
+      {/* centered focus card */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "1rem 1.4rem 3rem", boxSizing: "border-box" }}>
+        <div className="task-enter" style={card}>
+          <div style={badge}>{isBreak ? "☕" : "✓"}</div>
+          <p style={eyebrow}>{isBreak ? "On a break" : "Your current focus"}</p>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.4rem, 4vw, 2.1rem)", color: "#fff", margin: "0.7rem 0 0", lineHeight: 1.2 }}>
+            {isBreak ? "Breathe — look away from the screen" : (current ? current.title : "All tasks done — wrap up")}
+          </h1>
+          <p style={{ color: "#7a7a86", fontSize: "0.8rem", margin: "0.9rem 0 0", lineHeight: 1.6, maxWidth: "440px", marginInline: "auto" }}>
+            {isBreak
+              ? "Rest your eyes. Your timer resumes focus when the break ends."
+              : (current ? <>✦ Chosen for this slot — {tier.label.toLowerCase()} effort, ~{fmtDuration(current.est_minutes || 25)}, matching your current energy &amp; urgency.</> : "Nothing left in this session.")}
+          </p>
+
+          {!isBreak && (
+            <div style={{ maxWidth: "300px", margin: "1.6rem auto 1.8rem" }}>
+              <div style={{ fontSize: "0.7rem", color: "#888", marginBottom: "0.55rem", letterSpacing: "0.05em" }}>{taskPos} of {taskTotal}</div>
+              <div style={{ height: "6px", borderRadius: "20px", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${progPct}%`, background: accent, borderRadius: "20px", transition: "width .4s", boxShadow: `0 0 12px ${accent}88` }} />
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "0.7rem", marginTop: isBreak ? "1.8rem" : 0, flexWrap: "wrap", justifyContent: "center" }}>
+            {isBreak ? (
+              <GlassButton onClick={endBreak} accent="#6bffb3" style={btn}>▶ Resume focus</GlassButton>
+            ) : (
+              <>
+                {current && <GlassButton onClick={doneCurrent} accent="#e8ff5a" style={btn}>✓ Complete task</GlassButton>}
+                <GlassButton onClick={takeBreak} style={btn}>☕ Take a short break</GlassButton>
+                <GlassButton onClick={() => setRunning(r => !r)} style={btn}>{running ? "⏸ Pause focus" : "▶ Resume"}</GlassButton>
+              </>
+            )}
+          </div>
+
+          <p style={{ color: "#4a4a52", fontSize: "0.7rem", marginTop: "1.5rem", marginBottom: 0 }}>
+            ⓘ {isBreak ? "Telemetry noted your break — it helps tune your ideal rhythm." : "The next task appears only after this one is completed."}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
