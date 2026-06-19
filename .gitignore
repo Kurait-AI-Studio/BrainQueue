@@ -32,6 +32,8 @@ exports_csv
 # internal design mockups
 design-proposals*.html
 design-direction*.html
+design-layouts*.html
+design-focus*.html
 
 # internal planning / marketing docs (kept local)
 brainqueue-feature-roadmap.md
