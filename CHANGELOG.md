@@ -7,12 +7,15 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 ### Added
-- **Weekly review.** A kindly-toned, narrative recap that reads your behaviour back to
-  you — completion count (vs last week), how much of what you captured you finished,
+- **Weekly review.** A narrative recap that reads your behaviour back to you —
+  completion count (vs last week), how much of what you captured you finished,
   focused-effort time, a per-category breakdown, your strongest day, and your biggest
   win. Stats are computed exactly; the wording varies week to week so it reads like a
   thoughtful AI note. Opens from the sidebar and logs a `weekly_review_viewed` event.
   The first feature that *reads* the telemetry moat.
+- **Selectable review tone.** Choose how the weekly recap talks to you in Settings —
+  Kind, Motivational, Direct, or Tough love. Each tone has its own phrasing bank over
+  the same exact stats; the chosen tone is stamped on the `weekly_review_viewed` event.
 
 ## [1.1.0] — 2026-06-20
 Mid-level release: Brain Dump can now run on a second model provider.

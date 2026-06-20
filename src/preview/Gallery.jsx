@@ -114,7 +114,7 @@ export function Gallery() {
       </div>
 
       {modal === "task" && <TaskModal task={active[0]} onClose={() => setModal(null)} onSave={() => setModal(null)} customCategories={["Side project"]} onAddCategory={noop} />}
-      {modal === "settings" && <SettingsModal weights={undefined} onSave={noop} onClose={() => setModal(null)} />}
+      {modal === "settings" && <SettingsModal weights={undefined} reviewTone="kind" onSave={noop} onClose={() => setModal(null)} />}
       {modal === "analytics" && <AnalyticsModal tasks={mockTasks} customCategories={[]} onClose={() => setModal(null)} />}
       {modal === "session" && <SessionSetupModal tasks={active} onStart={() => setModal(null)} onClose={() => setModal(null)} />}
       {modal === "toast" && <Toast toast={{ type: "success", msg: "Added to your calendar ✓" }} onDone={() => setModal(null)} />}

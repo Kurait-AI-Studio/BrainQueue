@@ -242,7 +242,7 @@ function Splash() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, todayScore, weekScore, RRULE, nextOccurrence, withClassification, TIER, taskTier, fmtDuration } from "./lib/tasks";
-import { buildReview } from "./lib/weeklyReview";
+import { buildReview, DEFAULT_REVIEW_TONE } from "./lib/weeklyReview";
 
 // localStorage cache is namespaced per user, so signing in as someone else on the
 // same browser never surfaces the previous account's tasks or API key.
@@ -1081,8 +1081,8 @@ function WeeklyStat({ label, value, sub, accent }) {
   );
 }
 
-function WeeklyReviewModal({ tasks, weights, onClose, onView }) {
-  const review = useMemo(() => buildReview(tasks, weights), [tasks, weights]);
+function WeeklyReviewModal({ tasks, weights, tone, onClose, onView }) {
+  const review = useMemo(() => buildReview(tasks, weights, tone), [tasks, weights, tone]);
   // Fire the telemetry event once, when the review is opened.
   useEffect(() => { onView?.(review); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const { stats, perCategory, range, insights, closing, hasData } = review;
@@ -1375,7 +1375,7 @@ function MainApp({ session }) {
   try { setConsentState(localStorage.getItem(`bq_consent_${userId}`) || "product-only"); } catch { /* default stands */ }
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
-  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [] } = state;
+  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE } = state;
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
   // Custom categories live in local storage and don't sync directly — but tasks
@@ -1759,13 +1759,13 @@ function MainApp({ session }) {
         </div>
       </div>
 
-      {showSettings && <SettingsModal weights={weights} onSave={(w) => update({ weights: w })} onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => setShowSettings(false)} />}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={weights} />}
       {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} />}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
       {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
-      {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} onClose={() => setShowReview(false)}
-        onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
+      {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} tone={reviewTone} onClose={() => setShowReview(false)}
+        onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), tone: r.tone, completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
       {showSessionSetup && <SessionSetupModal tasks={sorted} onStart={startSession} onClose={() => setShowSessionSetup(false)} />}
       {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}

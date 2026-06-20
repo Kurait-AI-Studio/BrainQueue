@@ -3,11 +3,13 @@ import { glass, glassStrong } from "./tokens";
 import { GlassButton } from "./GlassButton";
 import { WeightSlider } from "./misc";
 import { DEFAULT_WEIGHTS } from "../lib/tasks";
+import { REVIEW_TONES, DEFAULT_REVIEW_TONE } from "../lib/weeklyReview";
 
-// Settings: the score-weight sliders. (Brain Dump runs through a server-side edge
-// function now, so there's no user-facing API key.)
-export function SettingsModal({ weights, onSave, onClose }) {
+// Settings: score-weight sliders + the weekly-review tone. (Brain Dump runs through a
+// server-side edge function now, so there's no user-facing API key.)
+export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
   const [w, setW] = useState({ ...DEFAULT_WEIGHTS, ...(weights || {}) });
+  const [tone, setTone] = useState(reviewTone || DEFAULT_REVIEW_TONE);
   const setWField = (k, v) => setW(prev => ({ ...prev, [k]: v }));
   const total = w.urgency + w.importance + w.effort + w.energy + (w.pleasure ?? 0);
   const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
@@ -53,7 +55,28 @@ export function SettingsModal({ weights, onSave, onClose }) {
           </button>
         </div>
 
-        <GlassButton onClick={() => { onSave(w); onClose(); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
+        <div style={{ marginBottom: "1.2rem" }}>
+          <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Weekly review tone</label>
+          <p style={{ fontSize: "0.72rem", color: "#333", margin: "0.4rem 0 0.8rem", lineHeight: 1.6 }}>How your weekly recap talks to you. {REVIEW_TONES[tone]?.hint}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.4rem" }}>
+            {Object.entries(REVIEW_TONES).map(([key, t]) => {
+              const active = tone === key;
+              return (
+                <button key={key} onClick={() => setTone(key)} style={{
+                  ...glass, borderRadius: "10px", padding: "0.6rem", cursor: "pointer", textAlign: "left",
+                  border: `1px solid ${active ? "#e8ff5a66" : "rgba(255,255,255,0.06)"}`,
+                  background: active ? "rgba(232,255,90,0.08)" : glass.background,
+                  color: active ? "#e8ff5a" : "#9a9aa6", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.78rem",
+                  transition: "all 0.15s",
+                }}>
+                  {t.emoji} {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <GlassButton onClick={() => { onSave({ weights: w, reviewTone: tone }); onClose(); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
       </div>
     </div>
   );
