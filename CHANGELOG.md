@@ -6,6 +6,13 @@ All notable changes to BrainQueue are documented here. The format follows
 as a major vs. mid-level release.
 
 ## [Unreleased]
+### Added
+- **Weekly review.** A kindly-toned, narrative recap that reads your behaviour back to
+  you — completion count (vs last week), how much of what you captured you finished,
+  focused-effort time, a per-category breakdown, your strongest day, and your biggest
+  win. Stats are computed exactly; the wording varies week to week so it reads like a
+  thoughtful AI note. Opens from the sidebar and logs a `weekly_review_viewed` event.
+  The first feature that *reads* the telemetry moat.
 
 ## [1.1.0] — 2026-06-20
 Mid-level release: Brain Dump can now run on a second model provider.

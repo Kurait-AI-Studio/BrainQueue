@@ -242,6 +242,7 @@ function Splash() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, todayScore, weekScore, RRULE, nextOccurrence, withClassification, TIER, taskTier, fmtDuration } from "./lib/tasks";
+import { buildReview } from "./lib/weeklyReview";
 
 // localStorage cache is namespaced per user, so signing in as someone else on the
 // same browser never surfaces the previous account's tasks or API key.
@@ -997,7 +998,7 @@ function ExportButton({ tasks, weights }) {
 
 // SideSection now lives in ./ui/widgets (imported above).
 
-function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAnalytics, open, onClose, session }) {
+function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAnalytics, onOpenReview, open, onClose, session }) {
   const cats = allCategories(customCategories);
   const countFor = (c) => tasks.filter(t => !t.done && taskCats(t).includes(c)).length;
   const activeCount = tasks.filter(t => !t.done).length;
@@ -1041,6 +1042,7 @@ function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAna
               <span><b style={{ color: "#6bffb3" }}>{weekScore(tasks)}</b> this wk</span>
             </div>
             <GlassButton onClick={onOpenAnalytics} style={{ width: "100%", padding: "0.5rem", fontSize: "0.74rem" }}>📊 View analytics</GlassButton>
+            <GlassButton onClick={onOpenReview} accent="#e8ff5a" style={{ width: "100%", padding: "0.5rem", fontSize: "0.74rem", marginTop: "0.4rem" }}>🗓️ Weekly review</GlassButton>
           </div>
         </SideSection>
 
@@ -1064,6 +1066,87 @@ function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAna
 // StatCard now lives in ./ui/widgets (imported above).
 
 // AnalyticsModal now lives in ./ui (imported above).
+
+// ─── Weekly review ───────────────────────────────────────────────────────────
+// Narrative, kindly-toned recap that reads behaviour back to the user. Stats are
+// computed exactly (src/lib/weeklyReview.js); the phrasing varies week to week so it
+// reads like a thoughtful AI note rather than a fixed template.
+function WeeklyStat({ label, value, sub, accent }) {
+  return (
+    <div style={{ ...glass, borderRadius: "14px", padding: "0.85rem 0.9rem", flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: "1.45rem", fontWeight: 800, fontFamily: "'Syne', sans-serif", color: accent, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: "0.66rem", color: "#8a8a96", marginTop: "0.3rem", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+      {sub && <div style={{ fontSize: "0.62rem", color: "#5a5a66", marginTop: "0.15rem" }}>{sub}</div>}
+    </div>
+  );
+}
+
+function WeeklyReviewModal({ tasks, weights, onClose, onView }) {
+  const review = useMemo(() => buildReview(tasks, weights), [tasks, weights]);
+  // Fire the telemetry event once, when the review is opened.
+  useEffect(() => { onView?.(review); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { stats, perCategory, range, insights, closing, hasData } = review;
+  const maxCat = perCategory.reduce((m, c) => Math.max(m, c.count), 0) || 1;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
+      <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.4rem" }}>
+          <div>
+            <div style={{ fontSize: "0.66rem", color: "#e8ff5a", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "0.25rem" }}>Weekly review</div>
+            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>Your week in review</h2>
+            <div style={{ fontSize: "0.72rem", color: "#6b6b76", marginTop: "0.2rem" }}>{range.label}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
+        </div>
+
+        {hasData && (
+          <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.4rem" }}>
+            <WeeklyStat label="Completed" value={stats.completed} accent="#6bffb3"
+              sub={stats.delta === 0 ? "same as last week" : `${stats.delta > 0 ? "+" : ""}${stats.delta} vs last week`} />
+            {stats.captureRate != null && <WeeklyStat label="Of this week's adds" value={`${stats.captureRate}%`} accent="#e8ff5a" sub="already done" />}
+            {stats.focusMinutes >= 1 && <WeeklyStat label="Focused effort" value={stats.focusLabel} accent="#6b9fff" sub={`${stats.openNow} still open`} />}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem", marginBottom: hasData ? "1.4rem" : 0 }}>
+          {insights.map((line, i) => (
+            <p key={i} style={{ color: i === 0 && hasData ? "#e6e6ea" : "#a7a7b2", fontSize: i === 0 && hasData ? "0.95rem" : "0.85rem", lineHeight: 1.7, margin: 0, fontWeight: i === 0 && hasData ? 600 : 400 }}>{line}</p>
+          ))}
+        </div>
+
+        {hasData && perCategory.length > 0 && (
+          <div style={{ marginBottom: "1.3rem" }}>
+            <div style={{ fontSize: "0.66rem", color: "#6b6b76", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>By category</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+              {perCategory.map(({ cat, count }) => {
+                const acc = CAT_ACCENT(cat);
+                return (
+                  <div key={cat} style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                    <span style={{ fontSize: "0.72rem", color: "#bcbcc6", width: "84px", flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cat}</span>
+                    <div style={{ flex: 1, height: "8px", background: "rgba(255,255,255,0.05)", borderRadius: "4px", overflow: "hidden" }}>
+                      <div style={{ width: `${(count / maxCat) * 100}%`, height: "100%", background: acc, boxShadow: `0 0 8px ${acc}88`, borderRadius: "4px", transition: "width 0.4s" }} />
+                    </div>
+                    <span style={{ fontSize: "0.7rem", color: acc, fontWeight: 700, width: "20px", textAlign: "right" }}>{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {hasData && stats.biggestWin && (
+          <div style={{ ...glass, borderRadius: "12px", padding: "0.75rem 0.9rem", marginBottom: "1.3rem", borderLeft: "2px solid #e8ff5a66" }}>
+            <div style={{ fontSize: "0.62rem", color: "#6b6b76", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>🏆 Biggest win</div>
+            <div style={{ fontSize: "0.86rem", color: "#ddd", marginTop: "0.25rem" }}>{stats.biggestWin.title}</div>
+          </div>
+        )}
+
+        {closing && <p style={{ color: "#7a7a86", fontSize: "0.8rem", lineHeight: 1.7, fontStyle: "italic", margin: 0 }}>{closing}</p>}
+      </div>
+    </div>
+  );
+}
 
 // ─── Focus sessions + Pomodoro ───────────────────────────────────────────────
 // Lightweight, fully client-side notifications: a soft chime + an in-tab Web
@@ -1379,6 +1462,7 @@ function MainApp({ session }) {
   const [filterCat, setFilterCat] = useState("All");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const [showSessionSetup, setShowSessionSetup] = useState(false);
   const [focusSession, setFocusSession] = useState(null);
 
@@ -1591,6 +1675,7 @@ function MainApp({ session }) {
       <Sidebar tasks={tasks} customCategories={syncedCategories} filterCat={filterCat} session={session}
         onPickCategory={(c) => { setFilterCat(c); setView(3); setSidebarOpen(false); }}
         onOpenAnalytics={() => { setShowAnalytics(true); setSidebarOpen(false); }}
+        onOpenReview={() => { setShowReview(true); setSidebarOpen(false); }}
         open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="bq-shell" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
@@ -1679,6 +1764,8 @@ function MainApp({ session }) {
       {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} />}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
       {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
+      {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} onClose={() => setShowReview(false)}
+        onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
       {showSessionSetup && <SessionSetupModal tasks={sorted} onStart={startSession} onClose={() => setShowSessionSetup(false)} />}
       {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
