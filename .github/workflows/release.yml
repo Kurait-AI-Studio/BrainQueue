@@ -1,0 +1,42 @@
+name: Release
+
+# Push a tag like v1.1.0 and this publishes a GitHub Release whose body is the
+# matching section of CHANGELOG.md, with the commit list auto-appended. No local
+# tooling needed — the whole flow is: edit CHANGELOG, commit, tag, push.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # vMAJOR.MINOR.PATCH only
+
+permissions:
+  contents: write # required to create the Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract this version's notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Print the lines under "## [<version>]" up to the next "## [" heading.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { grab=1; next }
+            grab && /^## \[/ { exit }
+            grab && /^\[[^]]+\]: / { exit }   # stop at the link-reference footer
+            grab { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Release $GITHUB_REF_NAME. See CHANGELOG.md for details." > RELEASE_NOTES.md
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true # appends the auto-generated commit list
+          prerelease: ${{ contains(github.ref_name, '-') }}
