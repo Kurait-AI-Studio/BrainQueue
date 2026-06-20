@@ -15,6 +15,29 @@ GitHub Release whose notes are the matching section of `CHANGELOG.md`.
 Rule of thumb matching how we talk about it: **major = v1, v2**; **mid-level = v2.1, v2.2**.
 Patch is there for hotfixes when you don't want to imply new features.
 
+## Commit messages decide the bump (so a minor change never fires a v2)
+
+We use [Conventional Commits](https://www.conventionalcommits.org/). The **highest-impact
+commit since the last tag** sets the bump — and crucially, **nothing except an explicit
+breaking marker bumps MAJOR**:
+
+| Commit prefix | Means | Version impact |
+| --- | --- | --- |
+| `feat!:` or a `BREAKING CHANGE:` footer | Breaking change | **MAJOR** (v1 → v2) — and *only* this |
+| `feat:` | New backward-compatible feature | **MINOR** (v1.0 → v1.1) |
+| `fix:` | Bug fix | **PATCH** (v1.1.0 → v1.1.1) |
+| `chore:` `docs:` `refactor:` `ci:` `test:` `style:` | Plumbing | **No release on its own** |
+
+So a `feat:` — however large it feels — is a **MINOR**, not a major. Multi-provider Brain
+Dump was a `feat:` and correctly shipped as `v1.1.0`, not `v2.0.0`. The only way to reach
+`v2.0.0` is to deliberately write `feat!:` / `BREAKING CHANGE:` *and* tag `v2.0.0`. There is
+no automatic major bump.
+
+**The atomicity guard:** the release workflow refuses to publish a tag that has no matching
+`## [X.Y.Z]` section in `CHANGELOG.md`. So you cannot accidentally push `v2.0.0` and get a
+release — you'd first have to write its (major) notes by hand, which is the human checkpoint
+that stops a minor change from masquerading as a major.
+
 ## Cutting a release
 
 1. **Move the notes.** In `CHANGELOG.md`, turn the `## [Unreleased]` block into

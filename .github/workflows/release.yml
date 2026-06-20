@@ -29,8 +29,12 @@ jobs:
             grab && /^\[[^]]+\]: / { exit }   # stop at the link-reference footer
             grab { print }
           ' CHANGELOG.md > RELEASE_NOTES.md
+          # Atomicity guard: a tag with no matching CHANGELOG section must NOT publish.
+          # This is what stops, e.g., a stray v2.0.0 tag from minting a major release that
+          # nobody wrote major notes for. Write the notes first, then tag.
           if [ ! -s RELEASE_NOTES.md ]; then
-            echo "Release $GITHUB_REF_NAME. See CHANGELOG.md for details." > RELEASE_NOTES.md
+            echo "::error::No '## [${GITHUB_REF_NAME#v}]' section in CHANGELOG.md — refusing to publish a release that doesn't match the tag. Add the changelog entry, then re-tag."
+            exit 1
           fi
 
       - name: Publish GitHub Release
