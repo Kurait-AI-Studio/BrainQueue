@@ -7,6 +7,27 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-06-20
+Mid-level release: Brain Dump can now run on a second model provider.
+
+### Added
+- **Multi-provider Brain Dump.** The `brain-dump` edge function is now provider-aware:
+  it routes to Anthropic *or* OpenAI behind the same JSON schema and rewraps OpenAI's
+  response into the Anthropic shape, so the app parses every reply identically.
+- **Model registry in the spec** (`BRAIN_DUMP_MODELS`): provider + per-million pricing
+  for each supported model. Switching the active model is a one-line change, and the
+  provider/pricing/route follow automatically.
+- New OpenAI models registered for telemetry pricing joins: `gpt-4o-mini`,
+  `gpt-4.1-mini`, `gpt-4o` (plus `claude-haiku-4-5`).
+
+### Changed
+- **Brain Dump prompt → `braindump-v2`:** provider-neutral wording so Anthropic and
+  OpenAI produce the same tasks, tighter split/dedup and category tie-break rules, and
+  a worked micro-example so cheaper models match Claude's quality.
+- Cost estimates in telemetry are now priced per chosen model from the registry, instead
+  of a hardcoded Sonnet rate.
+- `parse_requested` / `parse_result` events now stamp the `provider`.
+
 ## [1.0.0] — 2026-06-20
 First tagged release. The core product: capture, prioritize, and focus.
 
@@ -28,5 +49,6 @@ First tagged release. The core product: capture, prioritize, and focus.
 - **Design system:** components extracted to `src/ui`, synced to Claude Design, with a
   no-auth preview gallery and Playwright screenshot automation.
 
-[Unreleased]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Kurait-AI-Studio/BrainQueue/releases/tag/v1.0.0

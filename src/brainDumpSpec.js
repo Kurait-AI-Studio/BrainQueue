@@ -5,31 +5,48 @@
 
 export const CATEGORIES = ["Health", "Work", "Admin", "Social", "Finance", "Learning", "Personal"];
 
+// Every model Brain Dump can run, with its provider and price ($ / 1M tokens). The
+// app reads `provider` to tell the edge function which upstream to call, and the
+// prices to estimate cost in telemetry (parse_result.cost_est). This is the
+// client-side mirror of the model_registry table (migrations 0006/0007) — keep the
+// two in sync. The edge function keeps its OWN allowlist; this map just picks the
+// default and prices it, it does not grant access.
+export const BRAIN_DUMP_MODELS = {
+  "claude-sonnet-4-6": { provider: "anthropic", price_in: 3,    price_out: 15 },
+  "claude-haiku-4-5":  { provider: "anthropic", price_in: 1,    price_out: 5  },
+  "gpt-4o-mini":       { provider: "openai",    price_in: 0.15, price_out: 0.6 },
+  "gpt-4.1-mini":      { provider: "openai",    price_in: 0.4,  price_out: 1.6 },
+};
+
 // The model that powers Brain Dump in the app. This is a cheap, high-frequency
 // classification call — a perfect candidate for a small/old/open-source model.
 // Run `node eval/run-eval.mjs` to compare candidates, then set the winner here.
+// Switching providers is a one-line change: point this at any key of
+// BRAIN_DUMP_MODELS and the provider/pricing/route follow automatically.
 export const BRAIN_DUMP_MODEL = "claude-sonnet-4-6";
+export const BRAIN_DUMP_PROVIDER = BRAIN_DUMP_MODELS[BRAIN_DUMP_MODEL]?.provider ?? "anthropic";
 
 // Version stamp for the prompt + schema below. Bump whenever BRAIN_DUMP_SYSTEM or
 // the schema changes — telemetry stamps it on every parse event so we can ask, months
 // later, "was prompt v2 better than v1?" (Telemetry Capture Spec, principle 2). The
-// matching row lives in the prompt_registry table (migration 0006).
-export const BRAIN_DUMP_PROMPT_VERSION = "braindump-v1";
+// matching row lives in the prompt_registry table (migrations 0006/0007).
+export const BRAIN_DUMP_PROMPT_VERSION = "braindump-v2";
 
 // max_tokens for the call. 8000 comfortably fits a long dump's worth of structured
 // tasks without truncating (the old 4000 could clip large lists).
 export const BRAIN_DUMP_MAX_TOKENS = 8000;
 
 // Best-practice system prompt: role + extraction rules + an explicit scoring rubric.
-// Output *shape* is enforced by the JSON schema below (structured outputs), so the
-// prompt stays focused on classification quality, not "return only JSON".
-export const BRAIN_DUMP_SYSTEM = `You are BrainQueue's task-extraction engine. The user pastes a "brain dump": freeform notes in any format — numbered or bulleted lists, plain prose, to-do checkboxes, Notion or Markdown tables, voice transcripts, mixed languages. Turn it into a clean, deduplicated list of actionable tasks and score each one.
+// Output *shape* is enforced by the JSON schema below (structured outputs on both
+// Anthropic and OpenAI), so the prompt stays focused on classification quality, not
+// "return only JSON". It is deliberately model-independent — see the v2 framing line.
+export const BRAIN_DUMP_SYSTEM = `You are BrainQueue's task-extraction engine. You run on different language models (Anthropic and OpenAI) behind one shared JSON schema, so your output must be model-independent: the same brain dump should yield the same tasks and scores no matter which model executes you. The user pastes a "brain dump": freeform notes in any format — numbered or bulleted lists, plain prose, to-do checkboxes, Notion or Markdown tables, voice transcripts, mixed languages. Turn it into a clean, deduplicated list of actionable tasks and score each one.
 
 Extraction rules:
 - One task per discrete action. Split compound items: "call the bank and email the landlord" becomes two tasks.
 - Drop non-actionable lines: section headers, dates, labels, pure notes-to-self with no action, and anything already completed (crossed out, "done", "[x]", a strikethrough).
 - Do not invent tasks that the text does not imply. Stay faithful to the user's intent.
-- Merge obvious duplicates that refer to the same action.
+- Merge obvious duplicates that refer to the same action, even when worded differently or in different languages.
 - Write each title in clear English as an imperative — verb + object — about 60 characters max. Translate non-English input to English.
 - Strip list markers, numbering, checkboxes, and decorative emoji from titles.
 
@@ -39,14 +56,16 @@ Score every task with integers 1-5:
 - effort: 1 = 2 minutes or less, 2 = ~15 minutes, 3 = ~1 hour, 4 = half a day, 5 = multi-day. Estimate from the task.
 - energy: 1 = doable in "zombie mode", 5 = needs peak focus. Estimate the cognitive load.
 
-category: exactly one of Health, Work, Admin, Social, Finance, Learning, Personal.
+category: exactly one of Health, Work, Admin, Social, Finance, Learning, Personal. Pick the single best fit; when two fit, prefer the one describing the task's goal over its medium (paying an invoice is Finance, not Admin).
 notes: a short piece of context taken from the dump, or "" when there is none. Never just repeat the title.
 
 Also classify how the task will be worked:
-- est_minutes: a single best estimate of focused minutes to finish (e.g. 5, 25, 90). Keep it realistic.
+- est_minutes: a single best estimate of focused minutes to finish (e.g. 5, 25, 90). Keep it realistic and consistent with the effort score.
 - cognitive_load: 1 = mindless, 5 = deep concentration. Estimate the mental demand.
 - ai_delegatable: true if an AI assistant could do most of the work (drafting, summarising, research, coding), false for physical/in-person/decision-only tasks.
 - multi_step: true if the task clearly involves several distinct sub-steps, false if it is a single action.
+
+Example — the line "1. appeler la banque pour la carte + payer facture edf (urgent!!)" yields two tasks: one titled "Call the bank about the card" and one titled "Pay the EDF electricity bill", both category Finance, both urgency 5, each a single low-effort action.
 
 If the input contains no actionable tasks, return an empty list.`;
 

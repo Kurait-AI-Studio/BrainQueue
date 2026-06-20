@@ -1,14 +1,26 @@
 // BrainQueue · "brain-dump" Edge Function (Deno, runs on Supabase).
 //
-// An authenticated proxy to Anthropic. The Anthropic API key lives ONLY here, as a
-// Supabase secret — it is never shipped to the browser. The browser sends the dump
-// text plus the prompt/schema (from src/brainDumpSpec.js, the single source of truth)
-// with the user's Supabase session token; this function verifies the caller is a real
-// logged-in user, clamps the request, calls Anthropic with the server-side key, and
-// streams the response straight back.
+// An authenticated proxy to a language-model provider. The provider API keys live
+// ONLY here, as Supabase secrets — they are never shipped to the browser. The browser
+// sends the dump text plus the prompt/schema (from src/brainDumpSpec.js, the single
+// source of truth), the chosen model, and which `provider` to route to, along with the
+// user's Supabase session token. This function verifies the caller is a real logged-in
+// user, clamps the request, calls the provider with the server-side key, and returns a
+// response in ONE shape (Anthropic's) regardless of provider — so the client parses
+// every reply the same way and the telemetry (tokens/cost/raw_model_output) is uniform.
+//
+// Two providers are supported behind the same JSON schema:
+//   • anthropic — Messages API. `system` is a top-level field; structured output via
+//     output_config.format.json_schema; usage is input_tokens / output_tokens; the
+//     text lives in content[].text. We pass its response straight through.
+//   • openai    — Chat Completions. The system prompt is the first message
+//     ({role:"system"}); structured output via response_format.json_schema (strict);
+//     usage is prompt_tokens / completion_tokens; the text lives in
+//     choices[0].message.content. We REWRAP it into the Anthropic shape below.
 //
 // Deploy:
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+//   supabase secrets set OPENAI_API_KEY=sk-...        (only needed for the openai route)
 //   supabase functions deploy brain-dump
 //
 // SUPABASE_URL / SUPABASE_ANON_KEY are injected by the platform — no need to set them.
@@ -16,11 +28,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const MAX_TOKENS_CAP = 8000;                       // hard ceiling, ignores oversized client asks
-const ALLOWED_MODELS = new Set(["claude-sonnet-4-6"]); // allowlist — no arbitrary model billing
+const MAX_TOKENS_CAP = 8000; // hard ceiling, ignores oversized client asks
+
+// Per-provider allowlist — no arbitrary model billing, whatever the client sends.
+const ALLOWED_MODELS: Record<string, Set<string>> = {
+  anthropic: new Set(["claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-8"]),
+  openai: new Set(["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"]),
+};
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -33,10 +51,9 @@ const json = (obj: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
-  if (!ANTHROPIC_KEY) return json({ error: "Server misconfigured: ANTHROPIC_API_KEY not set" }, 500);
 
   // 1. Require a real, logged-in Supabase user (not just the anon key) so this proxy
-  //    can't be abused by anonymous callers to burn the project's Anthropic credits.
+  //    can't be abused by anonymous callers to burn the project's model credits.
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) return json({ error: "Missing authorization" }, 401);
@@ -50,31 +67,71 @@ Deno.serve(async (req) => {
   const dump = body.dump;
   const system = body.system;
   const schema = body.schema;
+  const provider = (body.provider as string) ?? "anthropic";
   const model = (body.model as string) ?? "claude-sonnet-4-6";
-  const maxTokens = Number(body.max_tokens) || MAX_TOKENS_CAP;
+  const maxTokens = Math.min(Number(body.max_tokens) || MAX_TOKENS_CAP, MAX_TOKENS_CAP);
   if (typeof dump !== "string" || !dump.trim()) return json({ error: "Missing dump text" }, 400);
-  if (!ALLOWED_MODELS.has(model)) return json({ error: `Model not allowed: ${model}` }, 400);
+  if (!ALLOWED_MODELS[provider]) return json({ error: `Provider not allowed: ${provider}` }, 400);
+  if (!ALLOWED_MODELS[provider].has(model)) return json({ error: `Model not allowed for ${provider}: ${model}` }, 400);
 
-  // 3. Call Anthropic with the SERVER-side key. The browser never sees it.
-  let aRes: Response;
+  // 3. Route to the provider with the SERVER-side key. The browser never sees it.
   try {
-    aRes = await fetch("https://api.anthropic.com/v1/messages", {
+    if (provider === "anthropic") {
+      if (!ANTHROPIC_KEY) return json({ error: "Server misconfigured: ANTHROPIC_API_KEY not set" }, 500);
+      const aRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          system,
+          output_config: schema ? { format: { type: "json_schema", schema } } : undefined,
+          messages: [{ role: "user", content: dump }],
+        }),
+      });
+      // Anthropic's shape is already what the client expects — pass it through unchanged.
+      const text = await aRes.text();
+      return new Response(text, { status: aRes.status, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    // provider === "openai"
+    if (!OPENAI_KEY) return json({ error: "Server misconfigured: OPENAI_API_KEY not set" }, 500);
+    const oRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_KEY}` },
       body: JSON.stringify({
         model,
-        max_tokens: Math.min(maxTokens, MAX_TOKENS_CAP),
-        system,
-        output_config: schema ? { format: { type: "json_schema", schema } } : undefined,
-        messages: [{ role: "user", content: dump }],
+        max_tokens: maxTokens,
+        temperature: 0,
+        // OpenAI takes the system prompt as the first message, not a top-level field.
+        // The reminder line is harmless under strict json_schema and steers the
+        // json_object fallback if a future model lacks schema support.
+        messages: [
+          { role: "system", content: `${system ?? ""}\n\nReturn a single JSON object of the form {"tasks": [ ... ]}.` },
+          { role: "user", content: dump },
+        ],
+        response_format: schema
+          ? { type: "json_schema", json_schema: { name: "task_list", strict: true, schema } }
+          : { type: "json_object" },
       }),
+    });
+    const oData = await oRes.json();
+    if (!oRes.ok || oData.error) {
+      const msg = oData?.error?.message || `OpenAI HTTP ${oRes.status}`;
+      return json({ error: msg }, oRes.status >= 400 ? oRes.status : 502);
+    }
+    // 4. Rewrap OpenAI's response into the Anthropic shape the client already parses:
+    //    content[].text for the JSON, usage.input_tokens / output_tokens for telemetry.
+    return json({
+      content: [{ type: "text", text: oData.choices?.[0]?.message?.content ?? "" }],
+      usage: {
+        input_tokens: oData.usage?.prompt_tokens ?? null,
+        output_tokens: oData.usage?.completion_tokens ?? null,
+      },
+      model: oData.model ?? model,
+      stop_reason: oData.choices?.[0]?.finish_reason ?? null,
     });
   } catch (e) {
     return json({ error: `Upstream request failed: ${String(e)}` }, 502);
   }
-
-  // 4. Pass Anthropic's response through unchanged, so the client parses it exactly
-  //    as before (the `tokens`/`cost`/`raw_model_output` telemetry still works).
-  const text = await aRes.text();
-  return new Response(text, { status: aRes.status, headers: { ...cors, "Content-Type": "application/json" } });
 });

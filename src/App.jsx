@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import {
   CATEGORIES,
   BRAIN_DUMP_MODEL,
+  BRAIN_DUMP_MODELS,
+  BRAIN_DUMP_PROVIDER,
   BRAIN_DUMP_PROMPT_VERSION,
   BRAIN_DUMP_MAX_TOKENS,
   BRAIN_DUMP_SYSTEM,
@@ -796,7 +798,7 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
     dumpIdRef.current = dumpId;
     // Principle 1 (log raw input) + 2 (version the generator).
     logEvent("brain_dump_created", null, { dump_id: dumpId, raw_text: dump, char_count: dump.length, input_method: "typed" });
-    logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS } });
+    logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS } });
     const t0 = performance.now();
     try {
       // Call the server-side "brain-dump" edge function (which holds the Anthropic
@@ -818,6 +820,7 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
           // response text is guaranteed-valid JSON — no markdown fences, no
           // regex scraping, no truncation surprises.
           schema: TASK_LIST_SCHEMA,
+          provider: BRAIN_DUMP_PROVIDER,
           model: BRAIN_DUMP_MODEL,
           max_tokens: BRAIN_DUMP_MAX_TOKENS,
         })
@@ -833,12 +836,15 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
       if (!tasks.length) throw new Error("No actionable tasks found in that dump.");
       // Stable per-task ref so edits/removals stay matched to the original across the diff.
       const withPid = tasks.map((t, i) => ({ ...t, _pid: `${dumpId}:${i}` }));
-      // Principle 1: the raw model output is irreplaceable. Estimate cost from usage.
+      // Principle 1: the raw model output is irreplaceable. Estimate cost from usage,
+      // priced per the chosen model (the edge function normalises every provider's
+      // token counts into input_tokens / output_tokens, so this is provider-agnostic).
       const usage = data.usage || {};
+      const price = BRAIN_DUMP_MODELS[BRAIN_DUMP_MODEL] || { price_in: 0, price_out: 0 };
       const cost_est = usage.input_tokens != null
-        ? +(usage.input_tokens / 1e6 * 3 + (usage.output_tokens || 0) / 1e6 * 15).toFixed(5) : null;
+        ? +(usage.input_tokens / 1e6 * price.price_in + (usage.output_tokens || 0) / 1e6 * price.price_out).toFixed(6) : null;
       logEvent("parse_result", null, {
-        dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL,
+        dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER,
         raw_model_output: textBlock.text, parsed_tasks: tasks, latency_ms: Math.round(performance.now() - t0),
         tokens_in: usage.input_tokens ?? null, tokens_out: usage.output_tokens ?? null, cost_est,
       });
@@ -912,7 +918,7 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
         </div>
         {!parsed ? (
           <>
-            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1rem", lineHeight: 1.7 }}>Paste anything — numbered, prose, checkboxes, any language. Claude extracts and scores the tasks; you tweak before adding.</p>
+            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1rem", lineHeight: 1.7 }}>Paste anything — numbered, prose, checkboxes, any language. The model extracts and scores the tasks; you tweak before adding.</p>
             <textarea value={dump} onChange={e => setDump(e.target.value)} onKeyDown={onKey} autoFocus
               placeholder={"5. Se renseigner sur Runpod\n6. Faire recette Sauce carotte\n7. Entreprise Mansa remplir documents\n8. Create Obsidian vault"}
               style={{ width: "100%", minHeight: "180px", ...glass, borderRadius: "12px", padding: "1rem", color: "#ccc", fontSize: "0.87rem", fontFamily: "'DM Mono', monospace", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
