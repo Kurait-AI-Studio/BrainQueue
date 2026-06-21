@@ -107,10 +107,18 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", background: BG, color: TXT, fontFamily: FONT, overflow: "hidden" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @media (max-width: 760px) {
+          .fss-aside { display: none !important; }
+          .fss-main { padding: 1.3rem 1.05rem !important; }
+          .fss-title { font-size: 1.4rem !important; }
+          .fss-cards { flex-direction: column !important; }
+          .fss-bonus { flex-wrap: wrap !important; }
+          .fss-bonus > * { flex: 1 1 44% !important; }
+        }`}</style>
 
       {/* Sidebar */}
-      <aside style={{ width: 234, background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "1.5rem 0.9rem", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <aside className="fss-aside" style={{ width: 234, background: PANEL, borderRight: `1px solid ${BORDER}`, padding: "1.5rem 0.9rem", display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 0.5rem", marginBottom: "1.6rem" }}>
           <span style={{ width: 26, height: 26, borderRadius: 8, background: GREEN, display: "grid", placeItems: "center", color: "#0a0a0d", fontWeight: 900, fontSize: "0.9rem" }}>✦</span>
           <span style={{ fontWeight: 800, fontSize: "1.08rem", letterSpacing: "-0.02em" }}>Brain<span style={{ color: GREEN }}>Queue</span></span>
@@ -140,10 +148,10 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
       </aside>
 
       {/* Main */}
-      <main style={{ flex: 1, padding: "2.3rem 2.5rem", overflow: "auto" }}>
+      <main className="fss-main" style={{ flex: 1, padding: "2.3rem 2.5rem", overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2.1rem", gap: "1.5rem" }}>
           <div>
-            <h1 style={{ fontSize: "1.85rem", fontWeight: 800, letterSpacing: "-0.025em", margin: 0, display: "flex", alignItems: "center", gap: 11 }}>
+            <h1 className="fss-title" style={{ fontSize: "1.85rem", fontWeight: 800, letterSpacing: "-0.025em", margin: 0, display: "flex", alignItems: "center", gap: 11 }}>
               <span style={{ color: GREEN }}>✦</span> Focus Sets Proposed for You
             </h1>
             <p style={{ fontSize: "0.9rem", color: MUTE, margin: "0.65rem 0 0", maxWidth: 580, lineHeight: 1.55 }}>
@@ -158,7 +166,7 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
             No active tasks to build a set from yet — add a few, then come back to focus.
           </div>
         ) : (
-          <div style={{ display: "flex", gap: "1.2rem", alignItems: "stretch", marginBottom: "1.5rem" }}>
+          <div className="fss-cards" style={{ display: "flex", gap: "1.2rem", alignItems: "stretch", marginBottom: "1.5rem" }}>
             {proposals.map(s => <SetCard key={s.id} set={s} onChoose={() => onStart?.({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5 })} />)}
           </div>
         )}
@@ -182,7 +190,7 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "0.8rem" }}>
+          <div className="fss-bonus" style={{ display: "flex", gap: "0.8rem" }}>
             {BONUSES.map(b => (
               <div key={b.id} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "0.7rem", background: `linear-gradient(180deg, ${b.color}10, rgba(255,255,255,0.02))`, border: `1px solid ${b.color}2e`, borderRadius: 13, padding: "0.75rem 0.85rem" }}>
                 <span style={{ width: 34, height: 34, borderRadius: 10, background: b.color + "1f", display: "grid", placeItems: "center", fontSize: "1rem", flexShrink: 0 }}>{b.icon}</span>

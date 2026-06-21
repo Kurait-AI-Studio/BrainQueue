@@ -26,6 +26,12 @@ as a major vs. mid-level release.
   Analytics / Rewards / Settings. Replaces the old drawer sidebar; Plus Jakarta Sans
   loaded globally.
 
+### Fixed
+- **Focus Mode on mobile.** The full-screen Focus Sets view was desktop-only — the 234px
+  sidebar crushed the three cards into unreadable slivers on phones. It's now responsive:
+  the overlay sidebar hides (the header's ✕ Close exits), cards stack vertically, and the
+  bonus tiles wrap.
+
 ### Changed
 - **Task cards restyled** (`TaskCard`, `DoneCard`) to the new clean look — flat dark
   cards, category accent bar, Plus Jakarta Sans — so the whole app is visually
