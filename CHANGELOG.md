@@ -6,6 +6,12 @@ All notable changes to BrainQueue are documented here. The format follows
 as a major vs. mid-level release.
 
 ## [Unreleased]
+
+## [2.0.0] — 2026-06-21
+The redesign release: a full Focus Mode, a gamification system (XP curve, levels,
+bonuses, celebrations), a persistent sidebar shell, a cleaner visual identity, and the
+weekly review — built on the telemetry foundation laid in 1.x.
+
 ### Added
 - **Focus Mode redesign — "Focus Sets Proposed for You."** A full-screen, sidebar-led
   view that presents the top 3 proposed task sets as rich cards (per-set XP badge, four
@@ -98,6 +104,7 @@ First tagged release. The core product: capture, prioritize, and focus.
 - **Design system:** components extracted to `src/ui`, synced to Claude Design, with a
   no-auth preview gallery and Playwright screenshot automation.
 
-[Unreleased]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Kurait-AI-Studio/BrainQueue/releases/tag/v1.0.0
