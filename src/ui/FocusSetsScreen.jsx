@@ -12,12 +12,13 @@ const GREEN = "#bef24a", TXT = "#ededf0", MUTE = "#83838f", FAINT = "#55555f";
 const ACCENT = { donow: GREEN, quick: "#f5b13a", deep: "#b388ff", easy: "#6b9fff" };
 const CAT_EMOJI = { Health: "💪", Work: "💼", Admin: "🗂", Social: "💬", Finance: "💰", Learning: "📚", Personal: "🌿" };
 const NAV = [
-  { icon: "◎", label: "Focus Mode", active: true },
-  { icon: "≡", label: "All Tasks" },
-  { icon: "◔", label: "Analytics" },
-  { icon: "♦", label: "Rewards" },
-  { icon: "⚙", label: "Settings" },
+  { icon: "🎯", label: "Focus Mode", active: true },
+  { icon: "📋", label: "All Tasks" },
+  { icon: "📊", label: "Analytics" },
+  { icon: "🏆", label: "Rewards" },
+  { icon: "⚙️", label: "Settings" },
 ];
+const NAV_IDLE = "#b6b6c2";
 const avg = (arr, f) => (arr.length ? Math.round(arr.reduce((s, t) => s + (f(t) || 0), 0) / arr.length) : 0);
 
 function Bars({ value, color }) {
@@ -127,11 +128,11 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
         <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {NAV.map(n => (
             <div key={n.label} onClick={() => go(n.label)} style={{
-              position: "relative", display: "flex", alignItems: "center", gap: 12, padding: "0.66rem 0.8rem", borderRadius: 11, cursor: "pointer",
-              fontSize: "0.86rem", fontWeight: n.active ? 700 : 500, color: n.active ? GREEN : MUTE, background: n.active ? GREEN + "14" : "transparent",
+              position: "relative", display: "flex", alignItems: "center", gap: 12, padding: "0.7rem 0.8rem", borderRadius: 11, cursor: "pointer",
+              fontSize: "0.88rem", fontWeight: n.active ? 700 : 600, color: n.active ? GREEN : NAV_IDLE, background: n.active ? GREEN + "1c" : "transparent",
             }}>
-              {n.active && <span style={{ position: "absolute", left: -9, top: "50%", transform: "translateY(-50%)", width: 3, height: 18, borderRadius: 2, background: GREEN }} />}
-              <span style={{ fontSize: "1rem", width: 18, textAlign: "center", opacity: n.active ? 1 : 0.8 }}>{n.icon}</span>{n.label}
+              {n.active && <span style={{ position: "absolute", left: -9, top: "50%", transform: "translateY(-50%)", width: 3, height: 20, borderRadius: 2, background: GREEN }} />}
+              <span style={{ fontSize: "1.05rem", width: 20, textAlign: "center" }}>{n.icon}</span>{n.label}
             </div>
           ))}
         </nav>

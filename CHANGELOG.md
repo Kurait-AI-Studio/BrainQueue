@@ -31,6 +31,13 @@ as a major vs. mid-level release.
   sidebar crushed the three cards into unreadable slivers on phones. It's now responsive:
   the overlay sidebar hides (the header's ✕ Close exits), cards stack vertically, and the
   bonus tiles wrap.
+- **Settings weight pills on mobile** no longer clip the last pill — the rigid 5-column
+  grid now wraps (`auto-fit`).
+
+### Changed (cont.)
+- **Clearer sidebar nav** — recognizable icons (🎯 📋 📊 🏆 ⚙️) and brighter inactive
+  labels in `AppSidebar` and the Focus Mode rail.
+- **Removed the CSV export** button from the header.
 
 ### Changed
 - **Task cards restyled** (`TaskCard`, `DoneCard`) to the new clean look — flat dark

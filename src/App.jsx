@@ -976,21 +976,6 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
 
 // SettingsModal now lives in ./ui (imported above).
 
-function ExportButton({ tasks, weights }) {
-  const exportCSV = () => {
-    const headers = ["title", "category", "urgency", "importance", "effort", "energy", "score", "done", "notes", "addedAt", "doneAt"];
-    const rows = tasks.map(t => headers.map(h => {
-      const v = h === "score" ? calcScore(t, weights) : t[h] ?? "";
-      return `"${String(v).replace(/"/g, '""')}"`;
-    }).join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `brainqueue_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-  return <GlassButton onClick={exportCSV} title="Export CSV" style={{ padding: "0.55rem 0.75rem", fontSize: "0.8rem" }}>↓<span className="bq-lbl"> CSV</span></GlassButton>;
-}
 
 // ─── Sidebar: XP/level, analytics, categories ────────────────────────────────
 // XPBar now lives in ./ui/widgets (imported above).
@@ -1667,7 +1652,6 @@ function MainApp({ session }) {
                 </div>
               </div>
               <div className="bq-actions">
-                <ExportButton tasks={tasks} weights={weights} />
                 <GlassButton onClick={() => setShowSettings(true)} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.82rem" }}>⚙️<span className="bq-lbl"> Settings</span></GlassButton>
                 <GlassButton onClick={() => setShowSessionSetup(true)} title="Focus" accent="#6bffb3" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>▶<span className="bq-lbl"> Focus</span></GlassButton>
                 <GlassButton onClick={() => setShowDump(true)} title="Brain Dump" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>✨<span className="bq-lbl"> Brain Dump</span></GlassButton>

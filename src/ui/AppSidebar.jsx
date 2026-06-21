@@ -8,12 +8,13 @@ const BORDER = "rgba(255,255,255,0.06)";
 const GREEN = "#bef24a", TXT = "#ededf0", MUTE = "#83838f", FAINT = "#55555f";
 
 const NAV = [
-  { id: "focus", icon: "◎", label: "Focus Mode" },
-  { id: "tasks", icon: "≡", label: "All Tasks" },
-  { id: "analytics", icon: "◔", label: "Analytics" },
-  { id: "rewards", icon: "♦", label: "Rewards" },
-  { id: "settings", icon: "⚙", label: "Settings" },
+  { id: "focus", icon: "🎯", label: "Focus Mode" },
+  { id: "tasks", icon: "📋", label: "All Tasks" },
+  { id: "analytics", icon: "📊", label: "Analytics" },
+  { id: "rewards", icon: "🏆", label: "Rewards" },
+  { id: "settings", icon: "⚙️", label: "Settings" },
 ];
+const NAV_IDLE = "#b6b6c2"; // clearer than the dim grey for inactive items
 
 export function AppSidebar({ session, tasks = [], active = "tasks", open, onClose, onNav, onAddTask, onSignOut }) {
   const lv = levelForXp(totalXP(tasks));
@@ -37,11 +38,11 @@ export function AppSidebar({ session, tasks = [], active = "tasks", open, onClos
             const on = active === n.id;
             return (
               <div key={n.id} onClick={() => pick(n.id)} style={{
-                position: "relative", display: "flex", alignItems: "center", gap: 12, padding: "0.66rem 0.8rem", borderRadius: 11, cursor: "pointer",
-                fontSize: "0.86rem", fontWeight: on ? 700 : 500, color: on ? GREEN : MUTE, background: on ? GREEN + "14" : "transparent",
+                position: "relative", display: "flex", alignItems: "center", gap: 12, padding: "0.7rem 0.8rem", borderRadius: 11, cursor: "pointer",
+                fontSize: "0.88rem", fontWeight: on ? 700 : 600, color: on ? GREEN : NAV_IDLE, background: on ? GREEN + "1c" : "transparent",
               }}>
-                {on && <span style={{ position: "absolute", left: -9, top: "50%", transform: "translateY(-50%)", width: 3, height: 18, borderRadius: 2, background: GREEN }} />}
-                <span style={{ fontSize: "1rem", width: 18, textAlign: "center", opacity: on ? 1 : 0.8 }}>{n.icon}</span>{n.label}
+                {on && <span style={{ position: "absolute", left: -9, top: "50%", transform: "translateY(-50%)", width: 3, height: 20, borderRadius: 2, background: GREEN }} />}
+                <span style={{ fontSize: "1.05rem", width: 20, textAlign: "center" }}>{n.icon}</span>{n.label}
               </div>
             );
           })}

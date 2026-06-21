@@ -32,7 +32,7 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
           <p style={{ fontSize: "0.72rem", color: "#333", marginBottom: "1.2rem", lineHeight: 1.6 }}>
             Controls what makes a task rise to the top in 🔥 Do Now. Higher weight = more influence on score.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "0.4rem", marginBottom: "1.2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(56px, 1fr))", gap: "0.4rem", marginBottom: "1.2rem" }}>
             {[["Urgency", w.urgency], ["Importance", w.importance], ["Quick win", w.effort], ["Low energy", w.energy], ["Pleasure", w.pleasure ?? 0]].map(([l, v]) => (
               <div key={l} style={{ ...glass, borderRadius: "10px", padding: "0.6rem", textAlign: "center" }}>
                 <div style={{ fontSize: "0.62rem", color: "#444", fontFamily: "'Syne', sans-serif", marginBottom: "0.2rem" }}>{l}</div>
