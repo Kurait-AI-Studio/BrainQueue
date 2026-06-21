@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BrainQueue — XP curve</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <style>
+    html,body{margin:0;background:#09090c;color:#e7e7ea;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+    #plot{width:1200px;height:680px;margin:0 auto}
+  </style>
+</head>
+<body>
+  <div id="plot"></div>
+  <script>
+    // Mirror of src/lib/xp.js — BASE=300, GROWTH=1.5, MAX_LEVEL=10.
+    const BASE = 300, GROWTH = 1.5, MAX = 10;
+    const TITLES = ["Spark","Starter","Builder","Mover","Operator","Achiever","Strategist","Machine","Virtuoso","Transformed"];
+    const cost = (l) => Math.round(BASE * GROWTH ** (l - 1));
+    const reach = (l) => { let a = 0; for (let i = 1; i < l; i++) a += cost(i); return a; };
+
+    const levels = Array.from({ length: MAX }, (_, i) => i + 1);
+    const cumulative = levels.map(reach);                 // XP to reach each level
+    const perLevel = levels.map(l => l < MAX ? cost(l) : null); // XP to advance to next
+    const XP_PER_DAY = 250;                               // ~one solid active day
+    const daysToReach = cumulative.map(x => Math.round(x / XP_PER_DAY));
+
+    const lime = "#bef24a", amber = "#f5b13a", purple = "#b388ff";
+
+    const traceCum = {
+      x: levels, y: cumulative, name: "Total XP to reach level",
+      type: "scatter", mode: "lines+markers", yaxis: "y",
+      line: { color: lime, width: 3, shape: "spline" },
+      marker: { size: 8, color: lime },
+      fill: "tozeroy", fillcolor: "rgba(190,242,74,0.08)",
+      hovertemplate: "<b>Level %{x} · " + "%{customdata}</b><br>%{y:,} XP total<extra></extra>",
+      customdata: TITLES,
+    };
+    const traceStep = {
+      x: levels, y: perLevel, name: "XP for this level",
+      type: "bar", yaxis: "y2", marker: { color: "rgba(243,177,58,0.55)" },
+      hovertemplate: "Level %{x}→%{x} : %{y:,} XP<extra></extra>",
+    };
+
+    const layout = {
+      paper_bgcolor: "#09090c", plot_bgcolor: "#09090c",
+      font: { color: "#cfcfd6", family: "'Plus Jakarta Sans',system-ui,sans-serif" },
+      title: { text: "<b>BrainQueue — the XP climb to a changed life</b><br><span style='font-size:13px;color:#83838f'>Quick early wins, then a real grind. Level 10 ≈ 4 months of consistent focus.</span>", font: { size: 22, color: "#ededf0" }, x: 0.04, xanchor: "left" },
+      margin: { t: 120, r: 70, b: 90, l: 80 },
+      legend: { orientation: "h", x: 0.04, y: 1.0, yanchor: "bottom", font: { size: 12 } },
+      xaxis: {
+        title: "Level", tickmode: "array", tickvals: levels,
+        ticktext: levels.map((l, i) => `${l}<br><span style='font-size:10px;color:#6a6a74'>${TITLES[i]}</span>`),
+        gridcolor: "rgba(255,255,255,0.05)", zeroline: false,
+      },
+      yaxis: { title: "Cumulative XP", gridcolor: "rgba(255,255,255,0.05)", zeroline: false, tickformat: "," },
+      yaxis2: { title: "XP per level", overlaying: "y", side: "right", showgrid: false, tickformat: "," },
+      annotations: [
+        {
+          x: 10, y: cumulative[9], yref: "y", text: `<b>Level 10 · Transformed</b><br>${cumulative[9].toLocaleString()} XP · ~${daysToReach[9]} active days`,
+          showarrow: true, arrowhead: 0, ax: -120, ay: -60, font: { color: lime, size: 12 },
+          bgcolor: "rgba(190,242,74,0.08)", bordercolor: "rgba(190,242,74,0.4)", borderpad: 6, borderwidth: 1,
+        },
+        {
+          x: 2, y: cumulative[1], yref: "y", text: "First few levels<br>land in week one", showarrow: true, arrowhead: 0,
+          ax: 40, ay: -50, font: { color: "#83838f", size: 11 },
+        },
+      ],
+    };
+    Plotly.newPlot("plot", [traceCum, traceStep], layout, { displayModeBar: false });
+  </script>
+</body>
+</html>

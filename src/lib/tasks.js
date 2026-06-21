@@ -63,14 +63,8 @@ export function taskXP(task) {
 }
 export const totalXP = (tasks) => tasks.filter(t => t.done).reduce((s, t) => s + taskXP(t), 0);
 
-export const LEVEL_TITLES = ["Sprout", "Doer", "Organizer", "Achiever", "Strategist", "Operator", "Machine", "Virtuoso", "Legend"];
-export function levelInfo(xp) {
-  // Deliberately steep: ~a week of solid days per early level, harder after.
-  let level = 1, need = 300, acc = 0;
-  while (xp >= acc + need) { acc += need; level++; need = Math.round(need * 1.5); }
-  const into = xp - acc;
-  return { level, into, need, pct: Math.round((into / need) * 100), title: LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] };
-}
+// The XP curve, level titles, and bonus rewards live in ./xp (single source of truth).
+export { LEVEL_TITLES, levelInfo, levelForXp, MAX_LEVEL, BONUSES, BONUS, xpToReach, levelCost } from "./xp";
 
 // ─── Analytics: completions over time ────────────────────────────────────────
 // Returns buckets [{ label, count, xp }] (oldest → newest) for the chosen period,

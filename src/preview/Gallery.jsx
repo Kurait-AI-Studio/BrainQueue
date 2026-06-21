@@ -1,11 +1,28 @@
 import { useState } from "react";
 import {
   glass, GlassButton, ViewTab, ScoreRing, GlassSlider, TierBadge, TaskCard, DoneCard,
-  XPBar, MiniBars, Donut, StatCard, SideSection, FocusRing, SessionStepper,
+  XPBar, MiniBars, Donut, StatCard, FocusRing, SessionStepper,
   MouseGlow, Dim, WeightSlider, EmptyState, InlineCatAdd, Toast, UserChip,
   TaskModal, SettingsModal, AnalyticsModal, SessionSetupModal,
 } from "../ui";
 import { doneSeries } from "../lib/tasks";
+import { FocusSetsScreen } from "../ui";
+
+// Richer active set so the proposed focus sets fill out (the focus route only).
+const hrsAgoG = (h) => new Date(Date.now() - h * 3.6e6).toISOString();
+const focusMock = [
+  { id: 1, title: "Finish the Q2 report", categories: ["Work"], urgency: 5, importance: 5, effort: 4, energy: 4, pleasure: 2, est_minutes: 120, cognitive_load: 4, multi_step: true, ai_delegatable: true, addedAt: hrsAgoG(48), done: false },
+  { id: 2, title: "Reply to Sophie's email", categories: ["Admin"], urgency: 3, importance: 2, effort: 1, energy: 1, pleasure: 3, est_minutes: 5, cognitive_load: 1, addedAt: hrsAgoG(6), done: false },
+  { id: 3, title: "30-minute run", categories: ["Health"], urgency: 4, importance: 4, effort: 2, energy: 3, pleasure: 4, est_minutes: 30, cognitive_load: 2, addedAt: hrsAgoG(20), done: false },
+  { id: 7, title: "Refactor the auth module", categories: ["Work"], urgency: 4, importance: 5, effort: 4, energy: 4, pleasure: 3, est_minutes: 180, cognitive_load: 5, multi_step: true, addedAt: hrsAgoG(30), done: false },
+  { id: 8, title: "Water the plants", categories: ["Personal"], urgency: 2, importance: 2, effort: 1, energy: 1, pleasure: 3, est_minutes: 5, cognitive_load: 1, addedAt: hrsAgoG(8), done: false },
+  { id: 9, title: "Book the dentist", categories: ["Admin"], urgency: 3, importance: 3, effort: 1, energy: 2, pleasure: 2, est_minutes: 10, cognitive_load: 2, addedAt: hrsAgoG(12), done: false },
+  { id: 10, title: "Read 10 pages", categories: ["Learning"], urgency: 2, importance: 3, effort: 2, energy: 2, pleasure: 5, est_minutes: 12, cognitive_load: 2, addedAt: hrsAgoG(16), done: false },
+  { id: 11, title: "Practice guitar", categories: ["Personal"], urgency: 2, importance: 2, effort: 2, energy: 2, pleasure: 5, est_minutes: 15, cognitive_load: 2, addedAt: hrsAgoG(5), done: false },
+  // a few done so the level/XP bar isn't empty
+  { id: 12, title: "Pay the bill", categories: ["Finance"], urgency: 5, importance: 4, effort: 1, energy: 1, est_minutes: 10, addedAt: hrsAgoG(70), doneAt: hrsAgoG(40), done: true },
+  { id: 13, title: "Stand-up notes", categories: ["Work"], urgency: 4, importance: 2, effort: 1, energy: 1, est_minutes: 10, addedAt: hrsAgoG(120), doneAt: hrsAgoG(70), done: true },
+];
 
 // ─── Mock data ───────────────────────────────────────────────────────────────
 const hrsAgo = (h) => new Date(Date.now() - h * 3.6e6).toISOString();
@@ -33,6 +50,7 @@ function Block({ title, children, pad = true }) {
 export function Gallery() {
   // ?modal=task|settings|analytics|session|toast opens one directly (for screenshots).
   const [modal, setModal] = useState(() => new URLSearchParams(window.location.search).get("modal"));
+  if (new URLSearchParams(window.location.search).get("view") === "focus") return <FocusSetsScreen tasks={focusMock} session={mockSession} onStart={noop} onExit={noop} />;
   const active = mockTasks.filter(t => !t.done);
   const done = mockTasks.filter(t => t.done);
   return (

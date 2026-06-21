@@ -11,7 +11,7 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, XPBar, SideSection, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, UserChip, AnalyticsModal, TaskModal, SettingsModal, SessionSetupModal } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, XPBar, SideSection, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, UserChip, AnalyticsModal, TaskModal, SettingsModal, FocusSetsScreen, XpBurst } from "./ui";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -1464,6 +1464,7 @@ function MainApp({ session }) {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showSessionSetup, setShowSessionSetup] = useState(false);
+  const [xpBurst, setXpBurst] = useState(null);
   const [focusSession, setFocusSession] = useState(null);
 
   // After returning from a calendar-consent redirect, finish (or report) the
@@ -1533,6 +1534,7 @@ function MainApp({ session }) {
         upsertTask(task);
         const late = task.addedAt && (new Date(task.doneAt) - new Date(task.addedAt)) / 3.6e6 > (URGENCY_TARGET_HRS[task.urgency] ?? 72);
         logEvent(late ? "task_completed_late" : "task_completed", task.id, { tier: taskTier(task), xp: taskXP(task) });
+        setXpBurst({ id: Date.now(), amount: taskXP(task), label: "Task complete" }); // dopamine pop
       }
       if (spawned) upsertTask(spawned);
       return spawned ? [...updated, spawned] : updated;
@@ -1766,8 +1768,9 @@ function MainApp({ session }) {
       {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
       {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} tone={reviewTone} onClose={() => setShowReview(false)}
         onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), tone: r.tone, completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
-      {showSessionSetup && <SessionSetupModal tasks={sorted} onStart={startSession} onClose={() => setShowSessionSetup(false)} />}
+      {showSessionSetup && <FocusSetsScreen tasks={sorted} session={session} onStart={startSession} onExit={() => setShowSessionSetup(false)} />}
       {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
+      <XpBurst burst={xpBurst} onDone={() => setXpBurst(null)} />
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );

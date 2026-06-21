@@ -17,3 +17,5 @@ export { AnalyticsModal } from "./AnalyticsModal";
 export { TaskModal } from "./TaskModal";
 export { SettingsModal } from "./SettingsModal";
 export { SessionSetupModal } from "./SessionSetupModal";
+export { FocusSetsScreen } from "./FocusSetsScreen";
+export { XpBurst } from "./XpBurst";

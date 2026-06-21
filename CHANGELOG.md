@@ -7,6 +7,17 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 ### Added
+- **Focus Mode redesign — "Focus Sets Proposed for You."** A full-screen, sidebar-led
+  view that presents the top 3 proposed task sets as rich cards (per-set XP badge, four
+  metric tiles, task list, Choose button), driven by the real `buildProposals` + per-task
+  XP. Replaces the old session-setup modal; choosing a set starts a focus session.
+- **XP curve & levels (`src/lib/xp.js`).** A geometric progression where quick early
+  levels give onboarding wins and Level 10 ("Transformed", ~22.5k XP) represents months
+  of consistent focus. Visualized in `docs/xp-curve.html`. Single source of truth for
+  level/title (re-exported from `lib/tasks`).
+- **Bonus XP rewards + earn animation.** Stackable bonuses (full set, combo ×3, 7-day
+  streak, early bird) shown under the sets, and an `XpBurst` "+N XP" pop that fires on
+  task completion — the dopamine layer.
 - **Weekly review.** A narrative recap that reads your behaviour back to you —
   completion count (vs last week), how much of what you captured you finished,
   focused-effort time, a per-category breakdown, your strongest day, and your biggest
