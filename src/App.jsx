@@ -11,7 +11,8 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, XPBar, SideSection, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, UserChip, AnalyticsModal, TaskModal, SettingsModal, FocusSetsScreen, XpBurst } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, AnalyticsModal, TaskModal, SettingsModal, FocusSetsScreen, XpBurst, SetCelebration, AppSidebar } from "./ui";
+import { recordSetClear, celebrationTitle } from "./lib/rewards";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -218,7 +219,7 @@ function LoginScreen() {
         </p>
       </div>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { background: #060610; overflow-x: hidden; max-width: 100%; }
         input { -webkit-appearance: none; appearance: none; }
@@ -241,7 +242,7 @@ function Splash() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, todayScore, weekScore, RRULE, nextOccurrence, withClassification, TIER, taskTier, fmtDuration } from "./lib/tasks";
+import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, RRULE, nextOccurrence, withClassification, TIER, taskTier, fmtDuration } from "./lib/tasks";
 import { buildReview, DEFAULT_REVIEW_TONE } from "./lib/weeklyReview";
 
 // localStorage cache is namespaced per user, so signing in as someone else on the
@@ -998,67 +999,7 @@ function ExportButton({ tasks, weights }) {
 
 // SideSection now lives in ./ui/widgets (imported above).
 
-function Sidebar({ tasks, customCategories, filterCat, onPickCategory, onOpenAnalytics, onOpenReview, open, onClose, session }) {
-  const cats = allCategories(customCategories);
-  const countFor = (c) => tasks.filter(t => !t.done && taskCats(t).includes(c)).length;
-  const activeCount = tasks.filter(t => !t.done).length;
-
-  const catRow = (c, count, active) => {
-    const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c);
-    return (
-      <button key={c} onClick={() => onPickCategory(c)} style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%",
-        padding: "0.4rem 0.6rem", borderRadius: "9px", cursor: "pointer", marginBottom: "0.2rem",
-        border: `1px solid ${active ? acc + "66" : "transparent"}`, background: active ? acc + "18" : "transparent",
-        color: active ? acc : "#9a9aa6", fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: "0.76rem",
-        transition: "all 0.15s",
-      }}>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
-          {c !== "All" && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: acc, boxShadow: `0 0 6px ${acc}` }} />}{c}
-        </span>
-        <span style={{ fontSize: "0.62rem", color: "#666" }}>{count}</span>
-      </button>
-    );
-  };
-
-  return (
-    <>
-      {open && <div className="bq-backdrop" onClick={onClose} />}
-      <aside className={`bq-sidebar${open ? " open" : ""}`}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.2rem", letterSpacing: "-0.03em" }}>
-            <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#e8ff5a", textShadow: "0 0 16px rgba(232,255,90,0.4)" }}>Queue</span>
-          </h1>
-          <button onClick={onClose} title="Close" style={{ background: "none", border: "none", color: "#666", fontSize: "1.3rem", cursor: "pointer", lineHeight: 1 }}>×</button>
-        </div>
-
-        <XPBar tasks={tasks} />
-
-        <SideSection title="Analytics">
-          <div style={{ ...glass, borderRadius: "12px", padding: "0.7rem 0.8rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.68rem", color: "#aaa", marginBottom: "0.6rem" }}>
-              <span><b style={{ color: "#e8ff5a" }}>{activeCount}</b> active</span>
-              <span><b style={{ color: "#6b9fff" }}>{todayScore(tasks)}</b> today</span>
-              <span><b style={{ color: "#6bffb3" }}>{weekScore(tasks)}</b> this wk</span>
-            </div>
-            <GlassButton onClick={onOpenAnalytics} style={{ width: "100%", padding: "0.5rem", fontSize: "0.74rem" }}>📊 View analytics</GlassButton>
-            <GlassButton onClick={onOpenReview} accent="#e8ff5a" style={{ width: "100%", padding: "0.5rem", fontSize: "0.74rem", marginTop: "0.4rem" }}>🗓️ Weekly review</GlassButton>
-          </div>
-        </SideSection>
-
-        <SideSection title="Categories">
-          {catRow("All", tasks.filter(t => !t.done).length, filterCat === "All")}
-          {cats.map(c => catRow(c, countFor(c), filterCat === c))}
-        </SideSection>
-
-        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
-          <UserChip session={session} />
-          <button onClick={() => signOut()} title="Sign out" style={{ ...glass, borderRadius: "10px", padding: "0.4rem 0.55rem", color: "#9a9aa6", cursor: "pointer", fontSize: "0.85rem", border: "1px solid rgba(255,255,255,0.1)" }}>⏻</button>
-        </div>
-      </aside>
-    </>
-  );
-}
+// The old drawer Sidebar was replaced by the persistent AppSidebar (src/ui/AppSidebar).
 
 // ─── Analytics modal ─────────────────────────────────────────────────────────
 // Donut now lives in ./ui/widgets (imported above).
@@ -1376,6 +1317,7 @@ function MainApp({ session }) {
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE } = state;
+  const tasksRef = useRef(tasks); tasksRef.current = tasks; // latest tasks for set-clear detection
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
   // Custom categories live in local storage and don't sync directly — but tasks
@@ -1465,6 +1407,7 @@ function MainApp({ session }) {
   const [showReview, setShowReview] = useState(false);
   const [showSessionSetup, setShowSessionSetup] = useState(false);
   const [xpBurst, setXpBurst] = useState(null);
+  const [celebration, setCelebration] = useState(null);
   const [focusSession, setFocusSession] = useState(null);
 
   // After returning from a calendar-consent redirect, finish (or report) the
@@ -1600,12 +1543,20 @@ function MainApp({ session }) {
       if (fs) {
         finalizeSession(fs.id, completedIds, focusSeconds);
         logEvent("session_completed", null, { completed: completedIds.length, focus_seconds: Math.round(focusSeconds) });
+        // Full set clear → the BIG celebration (gated to whole sets / combos / streaks).
+        const planned = fs.taskIds || [];
+        const doneNow = new Set(tasksRef.current.filter(t => t.done).map(t => t.id));
+        if (planned.length > 0 && planned.every(id => doneNow.has(id))) {
+          const r = recordSetClear(session?.user?.id);
+          r.earned.forEach(b => logEvent("bonus_earned", null, { bonus: b.id, xp: b.xp, sets_today: r.setsToday, streak: r.streak }));
+          setCelebration({ id: Date.now(), title: celebrationTitle(r), earned: r.earned, totalXp: r.totalXp });
+        }
       }
       return null;
     });
     setActiveSessionId(null);
     setSurface("web");
-  }, []);
+  }, [session]);
 
   const active = tasks.filter(t => !t.done);
   const done = tasks.filter(t => t.done).sort((a, b) => new Date(b.doneAt) - new Date(a.doneAt));
@@ -1629,7 +1580,7 @@ function MainApp({ session }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { background: #060610; overflow-x: hidden; max-width: 100%; }
         ::selection { background: #e8ff5a33; }
@@ -1646,7 +1597,18 @@ function MainApp({ session }) {
           border-right: 1px solid rgba(255,255,255,0.07); padding: 1.3rem 1.1rem 2rem; display: flex; flex-direction: column; gap: 1.3rem;
           transform: translateX(-100%); transition: transform .26s cubic-bezier(.34,1.2,.64,1); box-shadow: 0 0 60px rgba(0,0,0,.6); }
         .bq-sidebar.open { transform: translateX(0); }
-        .bq-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 39; }
+        .bq-backdrop, .app-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 39; }
+        /* New persistent shell sidebar: drawer on mobile, fixed rail on desktop. */
+        .app-sidebar { position: fixed; top: 0; left: 0; width: 234px; height: 100vh; overflow-y: auto; z-index: 40;
+          background: #0e0e12; border-right: 1px solid rgba(255,255,255,0.06); padding: 1.5rem 0.9rem; display: flex; flex-direction: column;
+          transform: translateX(-100%); transition: transform .26s cubic-bezier(.34,1.2,.64,1); box-shadow: 0 0 60px rgba(0,0,0,.6); }
+        .app-sidebar.open { transform: translateX(0); }
+        @media (min-width: 900px) {
+          .app-sidebar { transform: translateX(0); box-shadow: none; }
+          .app-main { margin-left: 234px; }
+          .app-backdrop { display: none; }
+          .bq-topbar-left { display: none !important; }
+        }
         .bq-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1.3rem; }
         .bq-actions { display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; }
         @media (max-width: 680px) {
@@ -1674,19 +1636,23 @@ function MainApp({ session }) {
         <div style={{ position: "absolute", bottom: "-10%", right: "-5%", width: "500px", height: "500px", borderRadius: "50%", background: "radial-gradient(circle, rgba(196,123,255,0.05) 0%, transparent 70%)" }} />
       </div>
 
-      <Sidebar tasks={tasks} customCategories={syncedCategories} filterCat={filterCat} session={session}
-        onPickCategory={(c) => { setFilterCat(c); setView(3); setSidebarOpen(false); }}
-        onOpenAnalytics={() => { setShowAnalytics(true); setSidebarOpen(false); }}
-        onOpenReview={() => { setShowReview(true); setSidebarOpen(false); }}
-        open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar session={session} tasks={tasks} active="tasks" open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        onAddTask={() => setShowAdd(true)} onSignOut={() => signOut()}
+        onNav={(id) => {
+          if (id === "focus") setShowSessionSetup(true);
+          else if (id === "tasks") setView(3);
+          else if (id === "analytics") setShowAnalytics(true);
+          else if (id === "rewards") setShowReview(true);
+          else if (id === "settings") setShowSettings(true);
+        }} />
 
-      <div className="bq-shell" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
+      <div className="bq-shell app-main" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ padding: "1.5rem 1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{ maxWidth: "780px", margin: "0 auto" }}>
             <div className="bq-head">
-              <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", minWidth: 0 }}>
+              <div className="bq-topbar-left" style={{ display: "flex", alignItems: "center", gap: "0.7rem", minWidth: 0 }}>
                 <GlassButton onClick={() => setSidebarOpen(o => !o)} title="Menu" style={{ padding: "0.55rem 0.75rem", fontSize: "0.95rem", flexShrink: 0 }}>☰</GlassButton>
                 <div style={{ minWidth: 0 }}>
                   <h1 className="bq-title" style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.5rem", letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap" }}>
@@ -1771,6 +1737,7 @@ function MainApp({ session }) {
       {showSessionSetup && <FocusSetsScreen tasks={sorted} session={session} onStart={startSession} onExit={() => setShowSessionSetup(false)} />}
       {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
       <XpBurst burst={xpBurst} onDone={() => setXpBurst(null)} />
+      <SetCelebration celebration={celebration} onDone={() => setCelebration(null)} />
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
     </>
   );

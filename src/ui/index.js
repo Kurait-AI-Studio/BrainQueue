@@ -19,3 +19,5 @@ export { SettingsModal } from "./SettingsModal";
 export { SessionSetupModal } from "./SessionSetupModal";
 export { FocusSetsScreen } from "./FocusSetsScreen";
 export { XpBurst } from "./XpBurst";
+export { SetCelebration } from "./SetCelebration";
+export { AppSidebar } from "./AppSidebar";

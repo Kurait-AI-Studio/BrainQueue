@@ -18,6 +18,13 @@ as a major vs. mid-level release.
 - **Bonus XP rewards + earn animation.** Stackable bonuses (full set, combo ×3, 7-day
   streak, early bird) shown under the sets, and an `XpBurst` "+N XP" pop that fires on
   task completion — the dopamine layer.
+- **Big set-clear celebration.** A full-screen confetti celebration that fires only when
+  a whole focus set is cleared, a 3-set combo lands, or a streak is hit (`src/lib/rewards.js`
+  tracks daily set count + streak; bonuses logged as `bonus_earned`).
+- **Persistent app sidebar.** The Focus Mode sidebar is now the whole app's shell — a
+  fixed rail on desktop, a drawer on mobile (`AppSidebar`), wired to Focus / All Tasks /
+  Analytics / Rewards / Settings. Replaces the old drawer sidebar; Plus Jakarta Sans
+  loaded globally.
 - **Weekly review.** A narrative recap that reads your behaviour back to you —
   completion count (vs last week), how much of what you captured you finished,
   focused-effort time, a per-category breakdown, your strongest day, and your biggest
