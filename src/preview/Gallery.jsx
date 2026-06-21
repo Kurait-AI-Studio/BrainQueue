@@ -6,7 +6,7 @@ import {
   TaskModal, SettingsModal, AnalyticsModal, SessionSetupModal,
 } from "../ui";
 import { doneSeries } from "../lib/tasks";
-import { FocusSetsScreen } from "../ui";
+import { FocusSetsScreen, AppSidebar } from "../ui";
 
 // Richer active set so the proposed focus sets fill out (the focus route only).
 const hrsAgoG = (h) => new Date(Date.now() - h * 3.6e6).toISOString();
@@ -47,10 +47,33 @@ function Block({ title, children, pad = true }) {
   );
 }
 
+// Preview of the propagated app shell: persistent AppSidebar + the existing task list.
+function ShellPreview() {
+  const [section, setSection] = useState("tasks");
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "#09090c" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        .app-sidebar{position:relative!important;transform:none!important;height:auto;min-height:100vh}`}</style>
+      <AppSidebar session={mockSession} tasks={focusMock} active={section} open={false} onClose={noop} onNav={setSection} onAddTask={noop} onSignOut={noop} />
+      <main style={{ flex: 1, padding: "2.3rem 2.5rem", color: "#ededf0", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>All Tasks</h1>
+        <p style={{ color: "#83838f", margin: "0.5rem 0 1.6rem", fontSize: "0.9rem" }}>The existing task list now sits to the right of the persistent sidebar.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxWidth: 720 }}>
+          {focusMock.filter(t => !t.done).slice(0, 5).map(t => (
+            <TaskCard key={t.id} task={t} weights={undefined} onEdit={noop} onMarkDone={noop} onDelete={noop} onSchedule={noop} />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
 export function Gallery() {
   // ?modal=task|settings|analytics|session|toast opens one directly (for screenshots).
   const [modal, setModal] = useState(() => new URLSearchParams(window.location.search).get("modal"));
-  if (new URLSearchParams(window.location.search).get("view") === "focus") return <FocusSetsScreen tasks={focusMock} session={mockSession} onStart={noop} onExit={noop} />;
+  const _view = new URLSearchParams(window.location.search).get("view");
+  if (_view === "focus") return <FocusSetsScreen tasks={focusMock} session={mockSession} onStart={noop} onExit={noop} />;
+  if (_view === "shell") return <ShellPreview />;
   const active = mockTasks.filter(t => !t.done);
   const done = mockTasks.filter(t => t.done);
   return (
