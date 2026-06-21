@@ -31,7 +31,11 @@
     "TaskModal": "src/ui/TaskModal.jsx",
     "SettingsModal": "src/ui/SettingsModal.jsx",
     "AnalyticsModal": "src/ui/AnalyticsModal.jsx",
-    "SessionSetupModal": "src/ui/SessionSetupModal.jsx"
+    "SessionSetupModal": "src/ui/SessionSetupModal.jsx",
+    "FocusSetsScreen": "src/ui/FocusSetsScreen.jsx",
+    "AppSidebar": "src/ui/AppSidebar.jsx",
+    "SetCelebration": "src/ui/SetCelebration.jsx",
+    "XpBurst": "src/ui/XpBurst.jsx"
   },
   "readmeHeader": ".design-sync/conventions.md"
 }

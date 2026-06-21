@@ -25,6 +25,14 @@ as a major vs. mid-level release.
   fixed rail on desktop, a drawer on mobile (`AppSidebar`), wired to Focus / All Tasks /
   Analytics / Rewards / Settings. Replaces the old drawer sidebar; Plus Jakarta Sans
   loaded globally.
+
+### Changed
+- **Task cards restyled** (`TaskCard`, `DoneCard`) to the new clean look — flat dark
+  cards, category accent bar, Plus Jakarta Sans — so the whole app is visually
+  consistent with the new sidebar and Focus Mode.
+- **design-sync:** registered `FocusSetsScreen`, `AppSidebar`, `SetCelebration`, and
+  `XpBurst` in the component map with authored preview fixtures; `preview.css` now loads
+  Plus Jakarta Sans. Run `/design-sync` to push.
 - **Weekly review.** A narrative recap that reads your behaviour back to you —
   completion count (vs last week), how much of what you captured you finished,
   focused-effort time, a per-category breakdown, your strongest day, and your biggest
