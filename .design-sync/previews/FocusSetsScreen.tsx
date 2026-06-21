@@ -13,6 +13,10 @@ const tasks = [
 ];
 const session = { user: { user_metadata: { full_name: "Husseine K." } } };
 
+// The screen renders position:fixed; un-fix its root so it flows into the capture card.
 export const FocusSets = () => (
-  <FocusSetsScreen tasks={tasks} session={session} onStart={() => {}} onExit={() => {}} />
+  <div style={{ minHeight: "100vh", background: "#09090c" }}>
+    <style>{`[style*="z-index: 200"]{position:relative!important;inset:auto!important;min-height:100vh}`}</style>
+    <FocusSetsScreen tasks={tasks} session={session} onStart={() => {}} onExit={() => {}} />
+  </div>
 );

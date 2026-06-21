@@ -37,5 +37,9 @@
     "SetCelebration": "src/ui/SetCelebration.jsx",
     "XpBurst": "src/ui/XpBurst.jsx"
   },
+  "overrides": {
+    "FocusSetsScreen": { "cardMode": "single", "viewport": "1280x860" },
+    "SetCelebration": { "cardMode": "single", "viewport": "900x640" }
+  },
   "readmeHeader": ".design-sync/conventions.md"
 }
