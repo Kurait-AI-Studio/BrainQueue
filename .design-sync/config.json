@@ -39,7 +39,9 @@
   },
   "overrides": {
     "FocusSetsScreen": { "cardMode": "single", "viewport": "1280x860" },
-    "SetCelebration": { "cardMode": "single", "viewport": "900x640" }
+    "SetCelebration": { "cardMode": "single", "viewport": "900x640" },
+    "TaskCard": { "cardMode": "column" },
+    "DoneCard": { "cardMode": "column" }
   },
   "readmeHeader": ".design-sync/conventions.md"
 }
