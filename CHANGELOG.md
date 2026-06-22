@@ -6,6 +6,11 @@ All notable changes to BrainQueue are documented here. The format follows
 as a major vs. mid-level release.
 
 ## [Unreleased]
+
+## [2.1.0] — 2026-06-23
+Make focus sets yours: customize and reorder proposed sets, build custom sets, open a rich
+task detail view, and queue tasks into a session — all captured as set-origin telemetry.
+
 ### Added
 - **Task detail view + session tray.** Clicking a task in **All Tasks** now opens a wide
   detail view — every dimension (urgency/importance/effort/energy/pleasure) as a labeled bar,
@@ -120,7 +125,8 @@ First tagged release. The core product: capture, prioritize, and focus.
 - **Design system:** components extracted to `src/ui`, synced to Claude Design, with a
   no-auth preview gallery and Playwright screenshot automation.
 
-[Unreleased]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/Kurait-AI-Studio/BrainQueue/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Kurait-AI-Studio/BrainQueue/releases/tag/v1.0.0
