@@ -6,6 +6,12 @@ All notable changes to BrainQueue are documented here. The format follows
 as a major vs. mid-level release.
 
 ## [Unreleased]
+### Added
+- **Customizable focus sets.** Any proposed set in Focus Mode now has a **Customize** action
+  that opens an inline editor: **reorder** tasks (▲▼ per task or **⇅ Reverse** to invert the
+  whole order — the top task runs first), **remove** tasks, **add** tasks from the rest of your
+  list, and rename the set. Plus **Build a custom set from scratch**. Starting the editor's set
+  enters a focus session with exactly that order.
 
 ## [2.0.0] — 2026-06-21
 The redesign release: a full Focus Mode, a gamification system (XP curve, levels,
