@@ -99,6 +99,20 @@ function SetEditor({ draft, setDraft, byId, active, onStart, onCancel }) {
   const remove = (id) => setDraft({ ...draft, ids: ids.filter(x => x !== id) });
   const add = (id) => setDraft({ ...draft, ids: [...ids, id] });
   const reverse = () => setDraft({ ...draft, ids: [...ids].reverse() });
+  const start = () => {
+    if (!ids.length) return;
+    const orig = draft.origin?.ids || [];
+    const common = ids.filter(id => orig.includes(id));
+    const origCommon = orig.filter(id => ids.includes(id));
+    onStart?.({ taskIds: ids, work: 25, brk: 5, meta: {
+      source: draft.origin ? "customized" : "custom",
+      base_set: draft.origin?.id || null,
+      count: ids.length,
+      added: ids.filter(id => !orig.includes(id)).length,
+      removed: orig.filter(id => !ids.includes(id)).length,
+      reordered: common.some((id, i) => id !== origCommon[i]),
+    } });
+  };
   const ctrlBtn = (label, onClick, disabled, color = MUTE) => (
     <button onClick={onClick} disabled={disabled} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, width: 26, height: 26, color: disabled ? "#33333a" : color, cursor: disabled ? "default" : "pointer", fontSize: "0.8rem", display: "grid", placeItems: "center", flexShrink: 0 }}>{label}</button>
   );
@@ -153,7 +167,7 @@ function SetEditor({ draft, setDraft, byId, active, onStart, onCancel }) {
 
       <div style={{ display: "flex", gap: "0.7rem" }}>
         <button onClick={onCancel} style={{ flex: "0 0 auto", padding: "0.8rem 1.2rem", borderRadius: 13, border: `1px solid ${BORDER}`, background: "transparent", color: MUTE, cursor: "pointer", fontFamily: FONT, fontWeight: 600, fontSize: "0.84rem" }}>Cancel</button>
-        <button onClick={() => rows.length && onStart?.({ taskIds: ids, work: 25, brk: 5 })} disabled={rows.length === 0}
+        <button onClick={start} disabled={rows.length === 0}
           style={{ flex: 1, padding: "0.8rem", borderRadius: 13, border: "none", background: rows.length ? a : a + "22", color: rows.length ? "#0a0a0d" : a + "88", cursor: rows.length ? "pointer" : "default", fontFamily: FONT, fontWeight: 700, fontSize: "0.86rem" }}>
           Start focus →
         </button>
@@ -162,10 +176,11 @@ function SetEditor({ draft, setDraft, byId, active, onStart, onCancel }) {
   );
 }
 
-export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
+export function FocusSetsScreen({ tasks = [], session, onStart, onExit, initialDraftIds = [] }) {
   const active = tasks.filter(t => !t.done);
   const byId = Object.fromEntries(active.map(t => [t.id, t]));
-  const [draft, setDraft] = useState(null); // { title, accent, ids: [...] } while editing/creating
+  // Optionally open straight into the editor pre-seeded from the "session tray".
+  const [draft, setDraft] = useState(() => initialDraftIds.length ? { title: "Custom set", accent: GREEN, ids: initialDraftIds.filter(id => byId[id]), origin: null } : null);
 
   const proposals = buildProposals(active).slice(0, 3).map((p, i) => {
     const a = ACCENT[p.id] || GREEN;
@@ -184,8 +199,8 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
   const name = session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "You";
   const initial = name[0]?.toUpperCase() || "Y";
   const go = (label) => { if (label !== "Focus Mode" && label !== "Rewards") onExit?.(); };
-  const editSet = (s) => setDraft({ title: `${s.name} — my version`, accent: s.accent, ids: s.tasks.map(t => t.id) });
-  const newSet = () => setDraft({ title: "Custom set", accent: GREEN, ids: [] });
+  const editSet = (s) => setDraft({ title: `${s.name} — my version`, accent: s.accent, ids: s.tasks.map(t => t.id), origin: { id: s.id, ids: s.tasks.map(t => t.id) } });
+  const newSet = () => setDraft({ title: "Custom set", accent: GREEN, ids: [], origin: null });
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", background: BG, color: TXT, fontFamily: FONT, overflow: "hidden" }}>
@@ -252,7 +267,7 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit }) {
         ) : (
           <>
             <div className="fss-cards" style={{ display: "flex", gap: "1.2rem", alignItems: "stretch", marginBottom: "1rem" }}>
-              {proposals.map(s => <SetCard key={s.id} set={s} onChoose={() => onStart?.({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5 })} onCustomize={() => editSet(s)} />)}
+              {proposals.map(s => <SetCard key={s.id} set={s} onChoose={() => onStart?.({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5, meta: { source: "proposed", base_set: s.id, count: s.tasks.length, added: 0, removed: 0, reordered: false } })} onCustomize={() => editSet(s)} />)}
             </div>
             <button onClick={newSet} style={{ width: "100%", padding: "0.85rem", borderRadius: 14, border: `1px dashed ${BORDER}`, background: "transparent", color: MUTE, cursor: "pointer", fontFamily: FONT, fontWeight: 600, fontSize: "0.84rem", marginBottom: "1.5rem" }}>
               ＋ Build a custom set from scratch

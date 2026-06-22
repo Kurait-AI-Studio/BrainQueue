@@ -7,6 +7,16 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 ### Added
+- **Task detail view + session tray.** Clicking a task in **All Tasks** now opens a wide
+  detail view — every dimension (urgency/importance/effort/energy/pleasure) as a labeled bar,
+  the classification (est, cognitive load, recurrence, multi-step, AI-delegatable), notes and
+  dates. From the detail view (or the new **＋** on any card) you can **add tasks to a focus
+  session**: a tray shows the queue and opens the focus-set editor pre-seeded, or **Focus on
+  this now** starts a single-task session.
+- **Set-origin telemetry.** `session_started` now records how the set was assembled
+  (`proposed` / `customized` / `custom` / `tray` / `single`), whether it was **reordered**, and
+  how many tasks were **added/removed** vs the proposal — signal for the future learning loop.
+  New `session_task_queued` event when a task is added to a session from the list.
 - **Customizable focus sets.** Any proposed set in Focus Mode now has a **Customize** action
   that opens an inline editor: **reorder** tasks (▲▼ per task or **⇅ Reverse** to invert the
   whole order — the top task runs first), **remove** tasks, **add** tasks from the rest of your

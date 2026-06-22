@@ -8,7 +8,7 @@ const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
 // An active task: title + priority ring, category/tier/recurrence/effort chips,
 // notes, and the row of actions (done / calendar / edit / delete). Restyled to the
 // app's new clean look — flat dark card, category accent bar, Plus Jakarta Sans.
-export function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weights }) {
+export function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, onOpen, onAddToSession, inSession, weights }) {
   const [hov, hovProps] = useHover();
   const score = calcScore(task, weights);
   const accent = CAT_ACCENT(task.category);
@@ -22,7 +22,7 @@ export function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weigh
       transition: "transform 0.25s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.25s ease, border-color 0.25s",
     }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div onClick={onOpen ? () => onOpen(task) : undefined} style={{ flex: 1, minWidth: 0, cursor: onOpen ? "pointer" : "default" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
             <span style={{ color: "#ededf0", fontSize: "0.92rem", fontWeight: 600, lineHeight: 1.4 }}>{task.title}</span>
             <ScoreRing score={score} />
@@ -42,6 +42,12 @@ export function TaskCard({ task, onEdit, onMarkDone, onDelete, onSchedule, weigh
           <p style={{ fontSize: "0.64rem", color: "#44444c", margin: "0.5rem 0 0" }}>Added {formatDate(task.addedAt)}</p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", flexShrink: 0 }}>
+          {onAddToSession && (
+            <button onClick={() => onAddToSession(task)} title={inSession ? "In your focus session" : "Add to focus session"}
+              style={{ background: "none", border: "none", color: inSession ? "#bef24a" : "#55555f", cursor: "pointer", fontSize: "0.95rem", transition: "color 0.15s, transform 0.15s" }}
+              onMouseEnter={e => { if (!inSession) e.target.style.color = "#bef24a"; e.target.style.transform = "scale(1.2)"; }}
+              onMouseLeave={e => { e.target.style.color = inSession ? "#bef24a" : "#55555f"; e.target.style.transform = "scale(1)"; }}>{inSession ? "✓" : "＋"}</button>
+          )}
           <button onClick={() => onMarkDone(task.id)} title="Mark done"
             style={{ background: "none", border: "none", color: "#55555f", cursor: "pointer", fontSize: "1rem", transition: "color 0.15s, transform 0.15s" }}
             onMouseEnter={e => { e.target.style.color = "#6bffb3"; e.target.style.transform = "scale(1.2)"; }}

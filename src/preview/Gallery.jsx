@@ -6,7 +6,7 @@ import {
   TaskModal, SettingsModal, AnalyticsModal, SessionSetupModal,
 } from "../ui";
 import { doneSeries } from "../lib/tasks";
-import { FocusSetsScreen, AppSidebar } from "../ui";
+import { FocusSetsScreen, AppSidebar, TaskDetailModal } from "../ui";
 
 // Richer active set so the proposed focus sets fill out (the focus route only).
 const hrsAgoG = (h) => new Date(Date.now() - h * 3.6e6).toISOString();
@@ -74,6 +74,7 @@ export function Gallery() {
   const _view = new URLSearchParams(window.location.search).get("view");
   if (_view === "focus") return <FocusSetsScreen tasks={focusMock} session={mockSession} onStart={noop} onExit={noop} />;
   if (_view === "shell") return <ShellPreview />;
+  if (_view === "detail") return <TaskDetailModal task={mockTasks[0]} weights={undefined} inSession={false} onClose={noop} onEdit={noop} onMarkDone={noop} onDelete={noop} onSchedule={noop} onAddToSession={noop} onFocusNow={noop} />;
   const active = mockTasks.filter(t => !t.done);
   const done = mockTasks.filter(t => t.done);
   return (

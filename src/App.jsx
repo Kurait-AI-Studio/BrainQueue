@@ -11,7 +11,7 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, AnalyticsModal, TaskModal, SettingsModal, FocusSetsScreen, XpBurst, SetCelebration, AppSidebar } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, AnalyticsModal, TaskModal, TaskDetailModal, SettingsModal, FocusSetsScreen, XpBurst, SetCelebration, AppSidebar } from "./ui";
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
 
 
@@ -1394,6 +1394,9 @@ function MainApp({ session }) {
   const [xpBurst, setXpBurst] = useState(null);
   const [celebration, setCelebration] = useState(null);
   const [focusSession, setFocusSession] = useState(null);
+  const [sessionDraft, setSessionDraft] = useState([]); // task ids queued for a focus session
+  const [detailTask, setDetailTask] = useState(null);    // task whose wide detail view is open
+  const [seedDraftIds, setSeedDraftIds] = useState([]);  // tray → pre-seed the focus-set editor
 
   // After returning from a calendar-consent redirect, finish (or report) the
   // insert that was stashed before we left. Runs on mount + when the provider
@@ -1513,15 +1516,30 @@ function MainApp({ session }) {
     logEvent("braindump_added", null, { count: classified.length });
   }, [commit]);
 
-  const startSession = useCallback(async ({ taskIds, work, brk }) => {
+  const startSession = useCallback(async ({ taskIds, work, brk, meta }) => {
     setShowSessionSetup(false);
+    setSeedDraftIds([]);
+    setSessionDraft([]); // starting a session consumes the tray
+    setDetailTask(null);
     try { if (typeof Notification !== "undefined" && Notification.permission === "default") await Notification.requestPermission(); } catch { /* ignore */ }
     const id = await insertSession(taskIds);
     setActiveSessionId(id);   // group every focus/pomodoro event under this session
     setSurface("web:focus");
-    logEvent("session_started", null, { count: taskIds.length, work, brk });
+    // meta carries how the set was assembled (proposed / customized / custom / tray / single)
+    // + whether it was reordered and how many tasks were added/removed — signal for the learning loop.
+    logEvent("session_started", null, { count: taskIds.length, work, brk, ...(meta || { source: "proposed" }) });
     setFocusSession({ id, taskIds, work, brk });
   }, []);
+
+  // "Session tray" — queue tasks from the All Tasks list, then open the focus-set editor pre-seeded.
+  const addToSession = (task) => {
+    if (sessionDraft.includes(task.id)) { setToast({ type: "success", msg: "Already in your session" }); return; }
+    setSessionDraft(d => [...d, task.id]);
+    logEvent("session_task_queued", task.id, { from: "all_tasks", tier: taskTier(task) });
+    setToast({ type: "success", msg: "Added to focus session" });
+  };
+  const focusNow = (task) => { setDetailTask(null); startSession({ taskIds: [task.id], work: 25, brk: 5, meta: { source: "single", count: 1, reordered: false, added: 0, removed: 0 } }); };
+  const startTraySession = () => { setSeedDraftIds(sessionDraft); setShowSessionSetup(true); };
 
   const endSession = useCallback((completedIds, focusSeconds) => {
     setFocusSession(fs => {
@@ -1702,7 +1720,7 @@ function MainApp({ session }) {
                 <div key={t.id} className="task-enter" style={{ animationDelay: `${i * 0.04}s` }}>
                   {t.done
                     ? <DoneCard task={t} onDelete={deleteTask} onRestore={restore} />
-                    : <TaskCard task={t} onEdit={setEditTask} onMarkDone={markDone} onDelete={deleteTask} onSchedule={setScheduleTask} weights={weights} />
+                    : <TaskCard task={t} onOpen={setDetailTask} onAddToSession={addToSession} inSession={sessionDraft.includes(t.id)} onEdit={setEditTask} onMarkDone={markDone} onDelete={deleteTask} onSchedule={setScheduleTask} weights={weights} />
                   }
                 </div>
               ))}
@@ -1718,7 +1736,21 @@ function MainApp({ session }) {
       {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
       {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} tone={reviewTone} onClose={() => setShowReview(false)}
         onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), tone: r.tone, completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
-      {showSessionSetup && <FocusSetsScreen tasks={sorted} session={session} onStart={startSession} onExit={() => setShowSessionSetup(false)} />}
+      {detailTask && <TaskDetailModal task={tasks.find(t => t.id === detailTask.id) || detailTask} weights={weights} inSession={sessionDraft.includes(detailTask.id)}
+        onClose={() => setDetailTask(null)}
+        onEdit={(t) => { setDetailTask(null); setEditTask(t); }}
+        onMarkDone={(id) => { markDone(id); setDetailTask(null); }}
+        onDelete={(id) => { deleteTask(id); setDetailTask(null); }}
+        onSchedule={(t) => { setDetailTask(null); setScheduleTask(t); }}
+        onAddToSession={addToSession} onFocusNow={focusNow} />}
+      {sessionDraft.length > 0 && !showSessionSetup && !focusSession && (
+        <div style={{ position: "fixed", left: "50%", bottom: 22, transform: "translateX(-50%)", zIndex: 240, display: "flex", alignItems: "center", gap: 14, background: "#14141a", border: "1px solid rgba(190,242,74,0.4)", borderRadius: 999, padding: "0.6rem 0.7rem 0.6rem 1.1rem", boxShadow: "0 16px 40px rgba(0,0,0,0.5)", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", color: "#ededf0" }}>
+          <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>🎯 {sessionDraft.length} task{sessionDraft.length === 1 ? "" : "s"} queued for focus</span>
+          <button onClick={() => setSessionDraft([])} title="Clear" style={{ background: "none", border: "none", color: "#83838f", cursor: "pointer", fontSize: "0.85rem" }}>Clear</button>
+          <button onClick={startTraySession} style={{ background: "#bef24a", border: "none", borderRadius: 999, padding: "0.5rem 1.1rem", color: "#0a0a0d", fontWeight: 800, fontSize: "0.82rem", cursor: "pointer", fontFamily: "inherit" }}>Start focus →</button>
+        </div>
+      )}
+      {showSessionSetup && <FocusSetsScreen tasks={sorted} session={session} onStart={startSession} initialDraftIds={seedDraftIds} onExit={() => { setShowSessionSetup(false); setSeedDraftIds([]); }} />}
       {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
       <XpBurst burst={xpBurst} onDone={() => setXpBurst(null)} />
       <SetCelebration celebration={celebration} onDone={() => setCelebration(null)} />

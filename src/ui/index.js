@@ -15,6 +15,7 @@ export { MouseGlow } from "./MouseGlow";
 export { Dim, WeightSlider, EmptyState, InlineCatAdd, Toast, UserChip } from "./misc";
 export { AnalyticsModal } from "./AnalyticsModal";
 export { TaskModal } from "./TaskModal";
+export { TaskDetailModal } from "./TaskDetailModal";
 export { SettingsModal } from "./SettingsModal";
 export { SessionSetupModal } from "./SessionSetupModal";
 export { FocusSetsScreen } from "./FocusSetsScreen";
