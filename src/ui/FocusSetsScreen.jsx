@@ -107,6 +107,10 @@ function SetEditor({ draft, setDraft, byId, active, onStart, onCancel }) {
     onStart?.({ taskIds: ids, work: 25, brk: 5, meta: {
       source: draft.origin ? "customized" : "custom",
       base_set: draft.origin?.id || null,
+      // The full ordered ids of what was proposed vs. what's actually run — so the exact
+      // diff (which tasks, in what order) is retro-engineerable, not just the counts.
+      base_set_ids: orig.map(String),
+      final_ids: ids.map(String),
       count: ids.length,
       added: ids.filter(id => !orig.includes(id)).length,
       removed: orig.filter(id => !ids.includes(id)).length,
@@ -267,7 +271,7 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit, initialD
         ) : (
           <>
             <div className="fss-cards" style={{ display: "flex", gap: "1.2rem", alignItems: "stretch", marginBottom: "1rem" }}>
-              {proposals.map(s => <SetCard key={s.id} set={s} onChoose={() => onStart?.({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5, meta: { source: "proposed", base_set: s.id, count: s.tasks.length, added: 0, removed: 0, reordered: false } })} onCustomize={() => editSet(s)} />)}
+              {proposals.map(s => { const sid = s.tasks.map(t => String(t.id)); return <SetCard key={s.id} set={s} onChoose={() => onStart?.({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5, meta: { source: "proposed", base_set: s.id, base_set_ids: sid, final_ids: sid, count: s.tasks.length, added: 0, removed: 0, reordered: false } })} onCustomize={() => editSet(s)} />; })}
             </div>
             <button onClick={newSet} style={{ width: "100%", padding: "0.85rem", borderRadius: 14, border: `1px dashed ${BORDER}`, background: "transparent", color: MUTE, cursor: "pointer", fontFamily: FONT, fontWeight: 600, fontSize: "0.84rem", marginBottom: "1.5rem" }}>
               ＋ Build a custom set from scratch

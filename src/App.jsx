@@ -366,32 +366,76 @@ async function deleteRemoteTask(id) {
 }
 
 // ─── Telemetry ───────────────────────────────────────────────────────────────
-// Fire-and-forget append to the immutable task_events log (the behavioral moat).
-// Never blocks or throws into the UI — failures are swallowed like upsertTask.
-function logEvent(eventType, taskId = null, context = null) {
+// Append to the immutable task_events log (the behavioral moat). Delivery is
+// DURABLE, not fire-and-forget: every event is assigned its id + sequence ONCE,
+// written to a localStorage outbox, then flushed to Supabase. A failed insert is
+// retried (next event / reconnect / reload) instead of being silently dropped —
+// so the log never loses an event or leaves a sequence-number gap. Retries are
+// idempotent: rows upsert on the unique event_id (migration 0008), so a retry
+// after a lost "success" response can't double-write history.
+const OUTBOX_KEY = "bq_event_outbox";
+let _flushing = false;
+
+// RFC4122-ish id so every event is dedup-keyable even where crypto.randomUUID is absent.
+function eventUuid() {
+  try { if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID(); } catch { /* fall through */ }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+function readOutbox() {
+  try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch { return []; }
+}
+function writeOutbox(rows) {
+  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(rows)); } catch { /* quota/blocked — best effort */ }
+}
+
+// Drain the outbox to Supabase. Safe to call often; no-ops when empty/already running.
+async function flushOutbox() {
   const sb = getSupabase();
-  if (!sb || !_userId) return;
+  if (!sb || _flushing) return;
+  const rows = readOutbox();
+  if (rows.length === 0) return;
+  _flushing = true;
+  try {
+    // Idempotent path: dedup on the unique event_id (migration 0008). Until that index
+    // exists, PostgREST rejects on_conflict (code 42P10) — fall back to a plain insert so
+    // events still deliver durably (the worst case is a rare dup row, deduped in analysis).
+    let { error } = await sb.from("task_events").upsert(rows, { onConflict: "event_id", ignoreDuplicates: true });
+    if (error && (error.code === "42P10" || /on conflict/i.test(error.message || ""))) {
+      ({ error } = await sb.from("task_events").insert(rows));
+    }
+    if (error) { console.warn("task_events flush:", error.message); return; } // keep rows for next attempt
+    // Drop exactly what we sent; events enqueued during the request are preserved.
+    const sent = new Set(rows.map(r => r.event_id));
+    writeOutbox(readOutbox().filter(r => !sent.has(r.event_id)));
+  } finally {
+    _flushing = false;
+  }
+}
+
+function logEvent(eventType, taskId = null, context = null) {
+  if (!_userId) return;
   const now = new Date();
   let tz; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { tz = null; }
-  const uuid = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : undefined;
-  sb.from("task_events")
-    .insert({
-      event_id: uuid,
-      user_id: _userId,
-      task_id: taskId != null ? String(taskId) : null,
-      session_id: _activeSessionId,
-      event_type: eventType,
-      event_at: now.toISOString(),          // ts_utc — canonical ordering
-      ts_local: now.toLocaleString("sv"),   // local wall-clock (sortable "YYYY-MM-DD HH:mm:ss")
-      tz,
-      sequence_number: nextSequence(),
-      schema_version: SCHEMA_VERSION,
-      app_version: APP_VERSION,
-      surface: _activeSurface,
-      consent_state: _consentState,
-      context,                              // event-specific payload
-    })
-    .then(({ error }) => { if (error) console.warn("task_events:", error.message); });
+  const row = {
+    event_id: eventUuid(),
+    user_id: _userId,
+    task_id: taskId != null ? String(taskId) : null,
+    session_id: _activeSessionId,
+    event_type: eventType,
+    event_at: now.toISOString(),          // ts_utc — canonical ordering
+    ts_local: now.toLocaleString("sv"),   // local wall-clock (sortable "YYYY-MM-DD HH:mm:ss")
+    tz,
+    sequence_number: nextSequence(),
+    schema_version: SCHEMA_VERSION,
+    app_version: APP_VERSION,
+    surface: _activeSurface,
+    consent_state: _consentState,
+    context,                              // event-specific payload
+  };
+  writeOutbox([...readOutbox(), row]);    // durable first — survives a failed/aborted send
+  flushOutbox();
 }
 
 // Focus sessions. insert returns the new row id so we can finalize it on session end.
@@ -1323,6 +1367,12 @@ function MainApp({ session }) {
     const sb = getSupabase();
     if (!sb) return;
 
+    // Drain any events stranded by a previous offline/failed session, and keep
+    // retrying whenever connectivity returns.
+    flushOutbox();
+    const onOnline = () => flushOutbox();
+    window.addEventListener("online", onOnline);
+
     setSyncStatus("syncing");
     const ownFilter = `user_id=eq.${userId}`;
 
@@ -1376,7 +1426,7 @@ function MainApp({ session }) {
       });
 
     // Cleanup on unmount / user switch
-    return () => { sb.removeChannel(channel); };
+    return () => { sb.removeChannel(channel); window.removeEventListener("online", onOnline); };
   }, [userId]);
 
   const [view, setView] = useState(0);
@@ -1538,14 +1588,22 @@ function MainApp({ session }) {
     logEvent("session_task_queued", task.id, { from: "all_tasks", tier: taskTier(task) });
     setToast({ type: "success", msg: "Added to focus session" });
   };
-  const focusNow = (task) => { setDetailTask(null); startSession({ taskIds: [task.id], work: 25, brk: 5, meta: { source: "single", count: 1, reordered: false, added: 0, removed: 0 } }); };
+  const focusNow = (task) => { setDetailTask(null); startSession({ taskIds: [task.id], work: 25, brk: 5, meta: { source: "single", count: 1, reordered: false, added: 0, removed: 0, base_set_ids: [String(task.id)], final_ids: [String(task.id)] } }); };
   const startTraySession = () => { setSeedDraftIds(sessionDraft); setShowSessionSetup(true); };
 
   const endSession = useCallback((completedIds, focusSeconds) => {
     setFocusSession(fs => {
       if (fs) {
         finalizeSession(fs.id, completedIds, focusSeconds);
-        logEvent("session_completed", null, { completed: completedIds.length, focus_seconds: Math.round(focusSeconds) });
+        // Record the actual ids (not just the count) so the set is reconstructable from
+        // this single immutable event even if the mutable sessions row or an individual
+        // task_completed event never lands. planned_ids = the final set that was run.
+        logEvent("session_completed", null, {
+          completed: completedIds.length,
+          completed_ids: completedIds.map(String),
+          planned_ids: (fs.taskIds || []).map(String),
+          focus_seconds: Math.round(focusSeconds),
+        });
         // Full set clear → the BIG celebration (gated to whole sets / combos / streaks).
         const planned = fs.taskIds || [];
         const doneNow = new Set(tasksRef.current.filter(t => t.done).map(t => t.id));
