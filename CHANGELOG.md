@@ -7,6 +7,22 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+## [2.2.1] — 2026-06-23
+Faster first load, and a test net under the telemetry moat.
+
+### Changed
+- **Faster first load via code-splitting.** The app shipped as one ~527 kB JS bundle, so the
+  login screen parsed code it didn't need. The heavy on-demand screens (Analytics, Settings,
+  task add/detail, the Focus Mode picker) are now lazy-loaded, and React + Supabase are split
+  into vendor chunks. Entry JS drops to ~80 kB and ~29 kB of screen code loads only when
+  opened. Lighthouse (mobile): performance **85 → 90**, total blocking time **130 ms → 0**,
+  time-to-interactive ~0.5 s faster.
+
+### Internal
+- Telemetry delivery extracted to `src/lib/telemetry.js` with an `npm test` suite (Node's
+  built-in runner) pinning the durable-delivery guarantees: no silent drop, retry on failure,
+  no sequence gaps. A CI workflow runs the tests + a production build on every push and PR.
+
 ## [2.2.0] — 2026-06-23
 Tell Focus Mode how much time you actually have, and trust the event log: a max-work-time
 ceiling reshapes the proposed sets, and telemetry now delivers durably and records the full
