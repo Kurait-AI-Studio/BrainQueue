@@ -7,11 +7,23 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+## [2.2.2] — 2026-06-23
+A coherent look and a much faster first load, on top of a big internal cleanup.
+
 ### Changed
 - **Unified the design language.** The app had drifted into two themes — a lime `#e8ff5a`
   accent with Syne + DM Mono on the older modals/list, and a green `#bef24a` with Plus Jakarta
   Sans on the v2 Focus Mode screens. Consolidated onto one accent and one font, now defined as
   tokens in `src/ui/tokens.js` (`accent`, `bg`, `font`). The app loads a single font.
+- **Much faster first load.** The signed-out page now downloads only React + Supabase + a tiny
+  (~6 kB gzip) login entry; the entire authed app is lazy-loaded on sign-in. Lighthouse (mobile)
+  improved from **90 → 98** across the release, with largest-contentful-paint and
+  time-to-interactive each ~1 s faster.
+
+### Internal
+- Broke the 1,800-line `App.jsx` into focused modules — `src/lib/client.js` (Supabase +
+  telemetry runtime), `src/lib/calendar.js`, and `src/ui/{LoginScreen,FocusMode,BrainDumpModal,
+  WeeklyReviewModal,ScheduleModal}.jsx`, plus `src/MainApp.jsx`. `App.jsx` is now a ~30-line root.
 
 ## [2.2.1] — 2026-06-23
 Faster first load, and a test net under the telemetry moat.
