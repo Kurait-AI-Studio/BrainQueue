@@ -1,8 +1,34 @@
 # BrainQueue
 
-A personal task system. React + Vite SPA, Supabase for sync. The headline
-feature is **Brain Dump**: paste any messy note and an LLM turns it into scored,
-categorized tasks.
+A personal task manager built around one idea: **the data is the moat**. The product —
+capture, focus, complete — sits on top of an append-only event log of how you actually
+plan, prioritize, and finish, so the system can get better at proposing *what to do next*.
+(That learning loop is the goal; the capture foundation is what's built today.)
+
+The headline feature is **Brain Dump**: paste any messy note and an LLM turns it into
+scored, categorized tasks.
+
+## What's inside
+- **Brain Dump** — messy notes → scored, categorized tasks via Anthropic structured outputs.
+- **Focus sets + Pomodoro** — proposed task sets (Do Now / Quick Wins / Deep Work / Low
+  Energy) with a **max-work-time ceiling**, an inline editor to customize/reorder, and a
+  focus timer.
+- **Gamification** — XP curve, levels, set/streak bonuses, celebrations.
+- **Weekly review & analytics** — completions over time, capture rate, focus minutes.
+- **Behavioral telemetry** — an immutable, append-only `task_events` log with **durable
+  delivery** that records the full lifecycle of every task and focus set. This is the moat.
+
+## Stack
+React + Vite SPA · Supabase (auth + RLS + sync + realtime) · Anthropic API (Brain Dump).
+App state and glue live in [`src/App.jsx`](src/App.jsx); reusable UI in `src/ui/`; pure
+domain logic in `src/lib/`; database schema in `supabase/migrations/`.
+
+## Docs
+- [`CLAUDE.md`](CLAUDE.md) — fast orientation: architecture, the data/telemetry model, conventions.
+- [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the product end to end, screen by screen.
+- [`docs/telemetry-capture-spec.md`](docs/telemetry-capture-spec.md) — the telemetry capture spec (the moat).
+- [`docs/RELEASING.md`](docs/RELEASING.md) — versioning + the tag-triggered release process.
+- [`CHANGELOG.md`](CHANGELOG.md) — what has shipped (current: **v2.2.0**).
 
 ## Brain Dump — how it works
 
