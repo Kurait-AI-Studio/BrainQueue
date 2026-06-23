@@ -2,8 +2,8 @@
 // reward strip. Driven by real tasks (buildProposals + taskXP) and the canonical XP curve.
 // Each proposed set can be CUSTOMIZED (reorder/reverse/remove/add tasks), and a set can be
 // built from scratch. Choosing/starting a set hands its ordered task ids to onStart().
-import { useState } from "react";
-import { buildProposals, taskCats, taskXP, totalXP, CAT_ACCENT, fmtDuration } from "../lib/tasks";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { buildProposals, taskCats, taskXP, totalXP, CAT_ACCENT, fmtDuration, DEFAULT_MAX_WORK_MIN, MAX_WORK_RANGE } from "../lib/tasks";
 import { levelForXp, BONUSES } from "../lib/xp";
 
 const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
@@ -43,7 +43,7 @@ function Tile({ icon, label, value, color, text }) {
   );
 }
 
-function SetCard({ set, onChoose, onCustomize }) {
+function SetCard({ set, onChoose, onCustomize, flashIds }) {
   const a = set.accent;
   return (
     <div style={{
@@ -66,8 +66,8 @@ function SetCard({ set, onChoose, onCustomize }) {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.4rem", flex: 1 }}>
-        {set.tasks.map((t, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.7rem", background: "rgba(255,255,255,0.02)", border: `1px solid ${BORDER}`, borderRadius: 13, padding: "0.6rem 0.7rem" }}>
+        {set.tasks.map((t) => { const isNew = flashIds?.has(`${set.id}:${t.id}`); return (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.7rem", background: "rgba(255,255,255,0.02)", border: `1px solid ${isNew ? a + "66" : BORDER}`, borderRadius: 13, padding: "0.6rem 0.7rem", animation: isNew ? "bqTaskIn 0.5s cubic-bezier(0.2,0.8,0.2,1)" : undefined, boxShadow: isNew ? `0 0 18px ${a}33` : "none" }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: t.color + "22", fontSize: "0.9rem", flexShrink: 0 }}>{t.emoji}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "0.83rem", color: TXT, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
@@ -75,7 +75,7 @@ function SetCard({ set, onChoose, onCustomize }) {
             </div>
             <span style={{ fontSize: "0.72rem", color: MUTE, fontWeight: 700, flexShrink: 0 }}>{t.min} min</span>
           </div>
-        ))}
+        ); })}
       </div>
 
       <button onClick={onChoose} style={{
@@ -95,9 +95,11 @@ function SetEditor({ draft, setDraft, byId, active, onStart, onCancel }) {
   const totalMin = rows.reduce((s, t) => s + (t.est_minutes || 25), 0);
   const xp = rows.reduce((s, t) => s + taskXP(t), 0);
   const a = draft.accent || GREEN;
+  const [justAdded, setJustAdded] = useState(null); // task id to briefly animate on add
+  useEffect(() => { if (justAdded == null) return; const to = setTimeout(() => setJustAdded(null), 650); return () => clearTimeout(to); }, [justAdded]);
   const move = (i, d) => { const j = i + d; if (j < 0 || j >= ids.length) return; const n = [...ids]; [n[i], n[j]] = [n[j], n[i]]; setDraft({ ...draft, ids: n }); };
   const remove = (id) => setDraft({ ...draft, ids: ids.filter(x => x !== id) });
-  const add = (id) => setDraft({ ...draft, ids: [...ids, id] });
+  const add = (id) => { setDraft({ ...draft, ids: [...ids, id] }); setJustAdded(id); };
   const reverse = () => setDraft({ ...draft, ids: [...ids].reverse() });
   const start = () => {
     if (!ids.length) return;
@@ -136,8 +138,8 @@ function SetEditor({ draft, setDraft, byId, active, onStart, onCancel }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", marginBottom: "1.1rem" }}>
         {rows.length === 0 && <p style={{ fontSize: "0.8rem", color: FAINT, padding: "0.6rem 0" }}>No tasks yet — add some below.</p>}
-        {rows.map((t, i) => { const r = rowFor(t); return (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", background: "rgba(255,255,255,0.025)", border: `1px solid ${BORDER}`, borderRadius: 12, padding: "0.5rem 0.6rem" }}>
+        {rows.map((t, i) => { const r = rowFor(t); const isNew = t.id === justAdded; return (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", background: "rgba(255,255,255,0.025)", border: `1px solid ${isNew ? a + "66" : BORDER}`, borderRadius: 12, padding: "0.5rem 0.6rem", animation: isNew ? "bqTaskIn 0.5s cubic-bezier(0.2,0.8,0.2,1)" : undefined, boxShadow: isNew ? `0 0 16px ${a}33` : "none" }}>
             <span style={{ fontSize: "0.66rem", color: FAINT, width: 16, textAlign: "center", flexShrink: 0 }}>{i + 1}</span>
             <span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", background: r.color + "22", fontSize: "0.85rem", flexShrink: 0 }}>{r.emoji}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -186,7 +188,12 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit, initialD
   // Optionally open straight into the editor pre-seeded from the "session tray".
   const [draft, setDraft] = useState(() => initialDraftIds.length ? { title: "Custom set", accent: GREEN, ids: initialDraftIds.filter(id => byId[id]), origin: null } : null);
 
-  const proposals = buildProposals(active).slice(0, 3).map((p, i) => {
+  // Max work time the user is willing to put in. It's a ceiling that reshapes the proposed
+  // sets (see buildProposals) — not the session clock — so dragging it can grow one set and
+  // leave another untouched. Recorded on session_started for the learning loop.
+  const [maxWork, setMaxWork] = useState(DEFAULT_MAX_WORK_MIN);
+  const activeKey = active.map(t => `${t.id}`).join(",");
+  const proposals = useMemo(() => buildProposals(active, maxWork).slice(0, 3).map((p, i) => {
     const a = ACCENT[p.id] || GREEN;
     return {
       ...p, accent: a, featured: i === 0,
@@ -197,7 +204,28 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit, initialD
       xp: p.items.reduce((s, t) => s + taskXP(t), 0),
       tasks: p.items.map(rowFor),
     };
-  });
+  }), [activeKey, maxWork]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flash any task that newly appeared in a set after a budget change (not on first open).
+  const prevIdsRef = useRef({});
+  const didInit = useRef(false);
+  const [flashIds, setFlashIds] = useState(() => new Set());
+  useEffect(() => {
+    const added = new Set();
+    proposals.forEach(p => {
+      const prev = prevIdsRef.current[p.id] || [];
+      p.tasks.forEach(t => { if (didInit.current && !prev.includes(t.id)) added.add(`${p.id}:${t.id}`); });
+      prevIdsRef.current[p.id] = p.tasks.map(t => t.id);
+    });
+    didInit.current = true;
+    if (added.size === 0) return;
+    setFlashIds(added);
+    const to = setTimeout(() => setFlashIds(new Set()), 700);
+    return () => clearTimeout(to);
+  }, [proposals]);
+
+  // Stamp every start with the chosen ceiling so the set's composition is interpretable later.
+  const handleStart = (args) => onStart?.({ ...args, meta: { ...(args.meta || {}), max_work_minutes: maxWork } });
 
   const lv = levelForXp(totalXP(tasks));
   const name = session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "You";
@@ -209,6 +237,12 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit, initialD
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", background: BG, color: TXT, fontFamily: FONT, overflow: "hidden" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @keyframes bqTaskIn {
+          0%   { opacity: 0; transform: translateY(-7px) scale(0.97); }
+          60%  { opacity: 1; }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
         @media (max-width: 760px) {
           .fss-aside { display: none !important; }
           .fss-main { padding: 1.3rem 1.05rem !important; }
@@ -263,15 +297,32 @@ export function FocusSetsScreen({ tasks = [], session, onStart, onExit, initialD
         </div>
 
         {draft ? (
-          <SetEditor draft={draft} setDraft={setDraft} byId={byId} active={active} onStart={onStart} onCancel={() => setDraft(null)} />
+          <SetEditor draft={draft} setDraft={setDraft} byId={byId} active={active} onStart={handleStart} onCancel={() => setDraft(null)} />
         ) : proposals.length === 0 ? (
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 18, padding: "3rem", textAlign: "center", color: MUTE }}>
             No active tasks to build a set from yet — add a few, then come back to focus.
           </div>
         ) : (
           <>
+            {/* Max-work-time control — drag to reshape every set to fit your available focus. */}
+            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: "1.1rem 1.3rem", marginBottom: "1.2rem" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", marginBottom: "0.7rem" }}>
+                <div>
+                  <div style={{ fontSize: "0.7rem", color: FAINT, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>⏳ Max work time</div>
+                  <div style={{ fontSize: "0.74rem", color: MUTE, marginTop: 3, maxWidth: 460, lineHeight: 1.45 }}>A ceiling, not a target — sets fill up to it. More time only adds a task when one actually fits, so some sets won’t change.</div>
+                </div>
+                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: GREEN, whiteSpace: "nowrap" }}>{fmtDuration(maxWork)}</span>
+              </div>
+              <input type="range" min={MAX_WORK_RANGE.min} max={MAX_WORK_RANGE.max} step={MAX_WORK_RANGE.step}
+                value={maxWork} onChange={e => setMaxWork(+e.target.value)} aria-label="Max work time in minutes"
+                style={{ width: "100%", accentColor: GREEN, cursor: "pointer" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                <span style={{ fontSize: "0.62rem", color: FAINT }}>{fmtDuration(MAX_WORK_RANGE.min)}</span>
+                <span style={{ fontSize: "0.62rem", color: FAINT }}>{fmtDuration(MAX_WORK_RANGE.max)}</span>
+              </div>
+            </div>
             <div className="fss-cards" style={{ display: "flex", gap: "1.2rem", alignItems: "stretch", marginBottom: "1rem" }}>
-              {proposals.map(s => { const sid = s.tasks.map(t => String(t.id)); return <SetCard key={s.id} set={s} onChoose={() => onStart?.({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5, meta: { source: "proposed", base_set: s.id, base_set_ids: sid, final_ids: sid, count: s.tasks.length, added: 0, removed: 0, reordered: false } })} onCustomize={() => editSet(s)} />; })}
+              {proposals.map(s => { const sid = s.tasks.map(t => String(t.id)); return <SetCard key={s.id} set={s} flashIds={flashIds} onChoose={() => handleStart({ taskIds: s.tasks.map(t => t.id), work: 25, brk: 5, meta: { source: "proposed", base_set: s.id, base_set_ids: sid, final_ids: sid, count: s.tasks.length, added: 0, removed: 0, reordered: false } })} onCustomize={() => editSet(s)} />; })}
             </div>
             <button onClick={newSet} style={{ width: "100%", padding: "0.85rem", borderRadius: 14, border: `1px dashed ${BORDER}`, background: "transparent", color: MUTE, cursor: "pointer", fontFamily: FONT, fontWeight: 600, fontSize: "0.84rem", marginBottom: "1.5rem" }}>
               ＋ Build a custom set from scratch

@@ -153,14 +153,43 @@ export function formatDate(iso) {
 // Default new-task form values.
 export const DEFAULT_FORM = { title: "", categories: ["Work"], recurrence: "none", urgency: 3, importance: 3, effort: 3, energy: 3, pleasure: 3, notes: "" };
 
-// Ready-made focus-session task sets. `tasks` arrives active + score-sorted, so
-// "Do Now" is just the top slice.
-export function buildProposals(tasks) {
+// How long the user is willing to work, in minutes. This is a CEILING on total
+// work — not the session's clock — that shapes which tasks a set proposes.
+export const DEFAULT_MAX_WORK_MIN = 60;
+export const MAX_WORK_RANGE = { min: 15, max: 180, step: 15 };
+
+// A task's working length, falling back to its effort tier when est_minutes is absent.
+export const estMinutes = (t) => t.est_minutes || EST_BY_EFFORT[Math.min(4, Math.max(0, (t.effort || 3) - 1))] || 25;
+
+// Fill a candidate pool up to a max-work-time budget (a CEILING, not a target) and a
+// count cap. Candidates are taken in their existing priority order; one joins only if it
+// still fits under the remaining budget. This is deliberately *not* "session duration":
+// raising the budget adds a task only when a fitting candidate actually exists, so a set
+// whose pool is small (e.g. Quick Wins — only short tasks qualify) often won't change at
+// all when given more time, while a set of long tasks (Deep Work) gains one. We keep at
+// least the single highest-priority task so a set never silently empties under a tight cap.
+function fillToBudget(pool, maxMinutes, cap) {
+  const out = [];
+  let used = 0;
+  for (const t of pool) {
+    if (out.length >= cap) break;
+    const m = estMinutes(t);
+    if (used + m > maxMinutes) continue; // doesn't fit the headroom left — skip it
+    out.push(t);
+    used += m;
+  }
+  if (out.length === 0 && pool.length) out.push(pool[0]);
+  return out;
+}
+
+// Ready-made focus-session task sets. `tasks` arrives active + score-sorted, so each
+// pool keeps its priority order; `maxMinutes` is the user's max-work-time ceiling.
+export function buildProposals(tasks, maxMinutes = Infinity) {
   const defs = [
-    { id: "donow", icon: "🔥", name: "Do Now", desc: "Top priority right now", pick: ts => ts.slice(0, 4) },
-    { id: "quick", icon: "⚡", name: "Quick Wins", desc: "Fast, low-effort momentum", pick: ts => ts.filter(t => t.effort <= 2).slice(0, 5) },
-    { id: "deep", icon: "⬣", name: "Deep Work", desc: "Heavy focus, few tasks", pick: ts => ts.filter(t => taskTier(t) === "heavy").slice(0, 3) },
-    { id: "easy", icon: "🧠", name: "Low Energy", desc: "Gentle on the brain", pick: ts => ts.filter(t => (t.cognitive_load ?? t.energy ?? 3) <= 2).slice(0, 4) },
+    { id: "donow", icon: "🔥", name: "Do Now", desc: "Top priority right now", pool: ts => ts, cap: 4 },
+    { id: "quick", icon: "⚡", name: "Quick Wins", desc: "Fast, low-effort momentum", pool: ts => ts.filter(t => t.effort <= 2), cap: 5 },
+    { id: "deep", icon: "⬣", name: "Deep Work", desc: "Heavy focus, few tasks", pool: ts => ts.filter(t => taskTier(t) === "heavy"), cap: 3 },
+    { id: "easy", icon: "🧠", name: "Low Energy", desc: "Gentle on the brain", pool: ts => ts.filter(t => (t.cognitive_load ?? t.energy ?? 3) <= 2), cap: 4 },
   ];
-  return defs.map(d => ({ ...d, items: d.pick(tasks) })).filter(d => d.items.length);
+  return defs.map(d => ({ ...d, items: fillToBudget(d.pool(tasks), maxMinutes, d.cap) })).filter(d => d.items.length);
 }
