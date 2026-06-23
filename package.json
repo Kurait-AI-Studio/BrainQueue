@@ -12,7 +12,8 @@
     "eval": "node eval/run-eval.mjs",
     "rate": "node eval/rate-server.mjs",
     "build:ui": "vite build --config vite.lib.config.js",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

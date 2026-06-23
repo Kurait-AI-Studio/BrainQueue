@@ -13,6 +13,7 @@ import {
 } from "./brainDumpSpec";
 import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, AnalyticsModal, TaskModal, TaskDetailModal, SettingsModal, FocusSetsScreen, XpBurst, SetCelebration, AppSidebar } from "./ui";
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
+import { createOutbox, eventUuid } from "./lib/telemetry";
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -366,53 +367,16 @@ async function deleteRemoteTask(id) {
 }
 
 // ─── Telemetry ───────────────────────────────────────────────────────────────
-// Append to the immutable task_events log (the behavioral moat). Delivery is
-// DURABLE, not fire-and-forget: every event is assigned its id + sequence ONCE,
-// written to a localStorage outbox, then flushed to Supabase. A failed insert is
-// retried (next event / reconnect / reload) instead of being silently dropped —
-// so the log never loses an event or leaves a sequence-number gap. Retries are
-// idempotent: rows upsert on the unique event_id (migration 0008), so a retry
-// after a lost "success" response can't double-write history.
-const OUTBOX_KEY = "bq_event_outbox";
-let _flushing = false;
-
-// RFC4122-ish id so every event is dedup-keyable even where crypto.randomUUID is absent.
-function eventUuid() {
-  try { if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID(); } catch { /* fall through */ }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-    const r = (Math.random() * 16) | 0; return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-function readOutbox() {
-  try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); } catch { return []; }
-}
-function writeOutbox(rows) {
-  try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(rows)); } catch { /* quota/blocked — best effort */ }
-}
-
-// Drain the outbox to Supabase. Safe to call often; no-ops when empty/already running.
-async function flushOutbox() {
-  const sb = getSupabase();
-  if (!sb || _flushing) return;
-  const rows = readOutbox();
-  if (rows.length === 0) return;
-  _flushing = true;
-  try {
-    // Idempotent path: dedup on the unique event_id (migration 0008). Until that index
-    // exists, PostgREST rejects on_conflict (code 42P10) — fall back to a plain insert so
-    // events still deliver durably (the worst case is a rare dup row, deduped in analysis).
-    let { error } = await sb.from("task_events").upsert(rows, { onConflict: "event_id", ignoreDuplicates: true });
-    if (error && (error.code === "42P10" || /on conflict/i.test(error.message || ""))) {
-      ({ error } = await sb.from("task_events").insert(rows));
-    }
-    if (error) { console.warn("task_events flush:", error.message); return; } // keep rows for next attempt
-    // Drop exactly what we sent; events enqueued during the request are preserved.
-    const sent = new Set(rows.map(r => r.event_id));
-    writeOutbox(readOutbox().filter(r => !sent.has(r.event_id)));
-  } finally {
-    _flushing = false;
-  }
-}
+// Append to the immutable task_events log (the behavioral moat). Delivery is DURABLE,
+// not fire-and-forget: every event is assigned its id + sequence ONCE, written to a
+// localStorage outbox, then flushed to Supabase, with failed sends retried instead of
+// silently dropped. The outbox lives in ./lib/telemetry so its data-loss-prevention
+// guarantees are unit-tested (test/telemetry.test.js); here we inject the real client.
+const _outbox = createOutbox({
+  getClient: getSupabase,
+  storage: typeof localStorage !== "undefined" ? localStorage : undefined,
+});
+const flushOutbox = () => _outbox.flush();
 
 function logEvent(eventType, taskId = null, context = null) {
   if (!_userId) return;
@@ -434,8 +398,8 @@ function logEvent(eventType, taskId = null, context = null) {
     consent_state: _consentState,
     context,                              // event-specific payload
   };
-  writeOutbox([...readOutbox(), row]);    // durable first — survives a failed/aborted send
-  flushOutbox();
+  _outbox.enqueue(row);   // durable first — persisted before any send
+  _outbox.flush();
 }
 
 // Focus sessions. insert returns the new row id so we can finalize it on session end.
