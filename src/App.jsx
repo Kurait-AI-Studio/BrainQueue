@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { CATEGORIES } from "./brainDumpSpec";
-import { glass, glassStrong, GlassButton, ViewTab, TaskCard, DoneCard, MouseGlow, EmptyState, InlineCatAdd, Toast, XpBurst, SetCelebration, AppSidebar } from "./ui";
+import { GlassButton, ViewTab, TaskCard, DoneCard, MouseGlow, EmptyState, InlineCatAdd, Toast, XpBurst, SetCelebration, AppSidebar } from "./ui";
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
 import { getSupabase, getUserId, setActiveUser, setConsentState, setActiveSessionId, setSurface, logEvent, flushOutbox, insertSession, finalizeSession, signOut } from "./lib/client";
 import { LoginScreen, Splash } from "./ui/LoginScreen";
 import { FocusMode } from "./ui/FocusMode";
 import { BrainDumpModal } from "./ui/BrainDumpModal";
 import { WeeklyReviewModal } from "./ui/WeeklyReviewModal";
+import { ScheduleModal } from "./ui/ScheduleModal";
+import { CAL_BACKENDS, PENDING_CAL_KEY, insertViaProvider, consentWasDenied, clearAuthParamsFromUrl } from "./lib/calendar";
 
 // Code-split the heavy, on-demand screens/modals: they're only mounted on a user action
 // (open settings, edit a task, view analytics, enter Focus Mode), so keeping them out of
@@ -30,7 +32,7 @@ const FocusSetsScreen = lazy(() => import("./ui/FocusSetsScreen").then(m => ({ d
 // their own modules without re-importing the glue.
 
 
-import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, RRULE, nextOccurrence, withClassification, taskTier } from "./lib/tasks";
+import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, nextOccurrence, withClassification, taskTier } from "./lib/tasks";
 import { DEFAULT_REVIEW_TONE } from "./lib/weeklyReview";
 
 // localStorage cache is namespaced per user, so signing in as someone else on the
@@ -142,181 +144,6 @@ async function deleteRemoteTask(id) {
   if (error) console.error("Supabase delete:", error);
 }
 
-// ─── Calendar ────────────────────────────────────────────────────────────────
-// One editable event per task, committed through whichever backend the user's
-// auth provider supports — one-click via API where we can, .ics download (which
-// every calendar app, including Apple Calendar, opens natively) everywhere else.
-//
-// To add a provider with one-click insert later: sign-in support for it (add to
-// OAUTH_PROVIDERS) + an entry here with its scope + an `insert` adapter below.
-const CAL_BACKENDS = {
-  google: {
-    label: "Google Calendar",
-    scope: "https://www.googleapis.com/auth/calendar.events",
-    // access_type=offline + prompt=consent so the consent screen actually shows
-    // the calendar permission (and Google issues a token that carries the scope).
-    queryParams: { access_type: "offline", prompt: "consent" },
-  },
-  azure: {
-    label: "Outlook Calendar",
-    scope: "Calendars.ReadWrite offline_access",
-    queryParams: { prompt: "consent" },
-  },
-};
-
-// The provider the signed-in user authenticated with (google | github | email | azure | apple …).
-const userProvider = (session) => session?.user?.app_metadata?.provider || "email";
-const calBackendFor = (session) => CAL_BACKENDS[userProvider(session)] || null;
-
-const PENDING_CAL_KEY = "bq_pending_calendar";
-
-const pad2 = (n) => String(n).padStart(2, "0");
-const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
-// Turn a task + the modal's choices into a serializable, backend-agnostic event.
-// All timed fields are ISO strings so the whole thing survives a sessionStorage
-// round-trip across the OAuth consent redirect.
-function buildEvent(task, opts) {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const lines = [];
-  if (task.notes) lines.push(task.notes);
-  lines.push(`Categories: ${taskCats(task).join(", ") || "—"} · priority score ${calcScore(task, DEFAULT_WEIGHTS)}/100`);
-  lines.push("Scheduled from BrainQueue");
-  const description = lines.join("\n");
-  const recurrence = task.recurrence && task.recurrence !== "none" ? task.recurrence : null;
-
-  if (opts.allDay) {
-    const start = new Date(`${opts.date}T00:00:00`);
-    const end = new Date(start.getTime() + 24 * 3600 * 1000); // exclusive end = next day
-    return {
-      summary: task.title, description, allDay: true, timeZone: tz, recurrence,
-      startDate: ymd(start), endDate: ymd(end), reminders: opts.reminders,
-    };
-  }
-  const start = new Date(`${opts.date}T${opts.time}:00`);
-  const end = new Date(start.getTime() + opts.durationMin * 60000);
-  return {
-    summary: task.title, description, allDay: false, timeZone: tz, recurrence,
-    start: start.toISOString(), end: end.toISOString(), reminders: opts.reminders,
-  };
-}
-
-// 401/403 ⇒ token missing the calendar scope (or expired) ⇒ re-consent.
-class CalAuthError extends Error {}
-
-async function googleInsert(token, ev) {
-  const body = ev.allDay
-    ? { summary: ev.summary, description: ev.description, start: { date: ev.startDate }, end: { date: ev.endDate } }
-    : { summary: ev.summary, description: ev.description,
-        start: { dateTime: ev.start, timeZone: ev.timeZone },
-        end: { dateTime: ev.end, timeZone: ev.timeZone } };
-  body.reminders = { useDefault: false, overrides: ev.reminders.map(m => ({ method: "popup", minutes: m })) };
-  if (ev.recurrence) body.recurrence = [RRULE[ev.recurrence]];
-  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401 || res.status === 403) throw new CalAuthError("calendar permission missing");
-  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error?.message || `Google Calendar error ${res.status}`);
-  return res.json();
-}
-
-async function microsoftInsert(token, ev) {
-  // Graph wants local date-times (no offset) paired with an IANA timeZone.
-  const noZ = (iso) => new Date(iso).toLocaleString("sv-SE").replace(" ", "T"); // "YYYY-MM-DDTHH:mm:ss"
-  const body = ev.allDay
-    ? { subject: ev.summary, body: { contentType: "text", content: ev.description }, isAllDay: true,
-        start: { dateTime: `${ev.startDate}T00:00:00`, timeZone: ev.timeZone },
-        end: { dateTime: `${ev.endDate}T00:00:00`, timeZone: ev.timeZone } }
-    : { subject: ev.summary, body: { contentType: "text", content: ev.description },
-        start: { dateTime: noZ(ev.start), timeZone: ev.timeZone },
-        end: { dateTime: noZ(ev.end), timeZone: ev.timeZone } };
-  if (ev.reminders.length) { body.isReminderOn = true; body.reminderMinutesBeforeStart = Math.min(...ev.reminders); }
-  if (ev.recurrence) {
-    const day0 = new Date(ev.start || `${ev.startDate}T00:00:00`);
-    const pattern = ev.recurrence === "weekly"
-      ? { type: "weekly", interval: 1, daysOfWeek: [day0.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()] }
-      : ev.recurrence === "monthly"
-        ? { type: "absoluteMonthly", interval: 1, dayOfMonth: day0.getDate() }
-        : { type: "daily", interval: 1 };
-    body.recurrence = { pattern, range: { type: "noEnd", startDate: ev.startDate || ev.start.slice(0, 10) } };
-  }
-  const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401 || res.status === 403) throw new CalAuthError("calendar permission missing");
-  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error?.message || `Outlook error ${res.status}`);
-  return res.json();
-}
-
-function insertViaProvider(provider, token, ev) {
-  if (provider === "google") return googleInsert(token, ev);
-  if (provider === "azure") return microsoftInsert(token, ev);
-  return Promise.reject(new Error("No one-click calendar for this provider"));
-}
-
-// Redirect to the provider's consent screen asking for the calendar scope on top
-// of the already-granted sign-in scopes. The pending event is stashed first so we
-// can finish the insert when the browser comes back.
-async function requestCalendarConsent(provider, ev, taskId) {
-  const sb = getSupabase();
-  const backend = CAL_BACKENDS[provider];
-  if (!sb || !backend) throw new Error("Calendar not available for this account.");
-  sessionStorage.setItem(PENDING_CAL_KEY, JSON.stringify({ provider, ev, taskId }));
-  const { error } = await sb.auth.signInWithOAuth({
-    provider,
-    options: { scopes: backend.scope, redirectTo: window.location.origin, queryParams: backend.queryParams },
-  });
-  if (error) { sessionStorage.removeItem(PENDING_CAL_KEY); throw error; }
-}
-
-// Did the provider redirect back with a denial instead of a grant?
-function consentWasDenied() {
-  const blob = window.location.hash + " " + window.location.search;
-  return /error=access_denied|error=consent_required|error_description/i.test(blob);
-}
-function clearAuthParamsFromUrl() {
-  window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
-}
-
-// ─── .ics generation (universal, zero-permission) ──────────────────────────────
-const icsEscape = (s = "") => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
-const icsUTC = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); // YYYYMMDDTHHMMSSZ
-
-function buildICS(ev) {
-  const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@brainqueue`;
-  const stamp = icsUTC(new Date().toISOString());
-  const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BrainQueue//EN", "CALSCALE:GREGORIAN",
-    "BEGIN:VEVENT", `UID:${uid}`, `DTSTAMP:${stamp}`,
-  ];
-  if (ev.allDay) {
-    lines.push(`DTSTART;VALUE=DATE:${ev.startDate.replace(/-/g, "")}`);
-    lines.push(`DTEND;VALUE=DATE:${ev.endDate.replace(/-/g, "")}`);
-  } else {
-    lines.push(`DTSTART:${icsUTC(ev.start)}`, `DTEND:${icsUTC(ev.end)}`);
-  }
-  lines.push(`SUMMARY:${icsEscape(ev.summary)}`, `DESCRIPTION:${icsEscape(ev.description)}`);
-  if (ev.recurrence) lines.push(RRULE[ev.recurrence]);
-  ev.reminders.forEach(m => {
-    lines.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Reminder", `TRIGGER:-PT${m}M`, "END:VALARM");
-  });
-  lines.push("END:VEVENT", "END:VCALENDAR");
-  return lines.join("\r\n");
-}
-
-function downloadICS(ev) {
-  const blob = new Blob([buildICS(ev)], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${(ev.summary || "task").replace(/[^a-z0-9]+/gi, "-").slice(0, 40).toLowerCase()}.ics`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-}
 
 // Merge: for each task, keep whichever version has the latest updated_at/addedAt
 function mergeTasks(local, remote) {
@@ -344,152 +171,6 @@ const VIEWS = ["🔥 Do Now", "⚡ Quick Wins", "🧠 Low Energy", "🗂 By Cate
 
 // GlassSlider now lives in ./ui/GlassSlider (imported above).
 
-// Default the start to the next round hour, and the duration to the task's effort.
-const nextHour = () => { const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1); return d; };
-const EFFORT_DURATION = { 1: 15, 2: 30, 3: 60, 4: 90, 5: 120 }; // minutes
-const REMINDER_CHOICES = [
-  { m: 0, label: "At start" }, { m: 10, label: "10 min" },
-  { m: 60, label: "1 hour" }, { m: 1440, label: "1 day" },
-];
-
-function ScheduleModal({ task, session, onClose, onResult }) {
-  const start0 = nextHour();
-  const [allDay, setAllDay] = useState(false);
-  const [date, setDate] = useState(ymd(start0));
-  const [time, setTime] = useState(`${pad2(start0.getHours())}:${pad2(start0.getMinutes())}`);
-  const [durationMin, setDurationMin] = useState(EFFORT_DURATION[task.effort] || 60);
-  const [reminders, setReminders] = useState([10]);
-  const [busy, setBusy] = useState(null); // "api" | "ics" | null
-  const [error, setError] = useState(null);
-
-  const backend = calBackendFor(session);          // { label, scope… } or null
-  const provider = userProvider(session);
-  const opts = { allDay, date, time, durationMin, reminders };
-
-  const toggleReminder = (m) =>
-    setReminders(r => r.includes(m) ? r.filter(x => x !== m) : [...r, m].sort((a, b) => a - b));
-
-  const onDownloadICS = () => {
-    downloadICS(buildEvent(task, opts));
-    onResult({ type: "success", msg: "Calendar file downloaded — open it to add the event." });
-    onClose();
-  };
-
-  const onAddViaApi = async () => {
-    setBusy("api"); setError(null);
-    const ev = buildEvent(task, opts);
-    const token = session.provider_token;
-    try {
-      if (token) {
-        await insertViaProvider(provider, token, ev);
-        onResult({ type: "success", msg: `Added to ${backend.label} ✓` });
-        onClose();
-        return;
-      }
-      // No usable token in this session → go get consent (full-page redirect).
-      await requestCalendarConsent(provider, ev, task.id);
-      // browser redirects away; nothing after this runs
-    } catch (e) {
-      if (e instanceof CalAuthError) {
-        // Had a token but it lacked the scope — ask for consent.
-        try { await requestCalendarConsent(provider, ev, task.id); return; }
-        catch (e2) { setError(e2.message); }
-      } else {
-        setError(e.message);
-      }
-      setBusy(null);
-    }
-  };
-
-  const fieldStyle = { ...glass, borderRadius: "10px", padding: "0.6rem 0.8rem", color: "#e8e8e8", fontSize: "0.82rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", outline: "none", boxSizing: "border-box", colorScheme: "dark" };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
-      <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "440px", maxHeight: "90vh", overflow: "auto", padding: "1.8rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-          <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "1.15rem", color: "#fff", margin: 0 }}>📅 Add to calendar</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
-        </div>
-        <p style={{ fontSize: "0.78rem", color: "#888", margin: "0 0 1.3rem", lineHeight: 1.4 }}>{task.title}</p>
-
-        {/* All-day toggle */}
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", cursor: "pointer" }}>
-          <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} style={{ accentColor: "#bef24a", width: "16px", height: "16px" }} />
-          <span style={{ fontSize: "0.8rem", color: "#bbb", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>All-day event</span>
-        </label>
-
-        {/* Date + (time / duration) */}
-        <div style={{ display: "grid", gridTemplateColumns: allDay ? "1fr" : "1fr 1fr", gap: "0.6rem", marginBottom: "1.1rem" }}>
-          <div>
-            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.3rem" }}>DATE</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fieldStyle, width: "100%" }} />
-          </div>
-          {!allDay && (
-            <div>
-              <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.3rem" }}>START</label>
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ ...fieldStyle, width: "100%" }} />
-            </div>
-          )}
-        </div>
-
-        {!allDay && (
-          <div style={{ marginBottom: "1.1rem" }}>
-            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.4rem" }}>DURATION</label>
-            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-              {[15, 30, 60, 90, 120].map(d => (
-                <button key={d} onClick={() => setDurationMin(d)} style={{
-                  padding: "0.3rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem",
-                  fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 600,
-                  border: `1px solid ${durationMin === d ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.08)"}`,
-                  background: durationMin === d ? "rgba(232,255,90,0.14)" : "transparent",
-                  color: durationMin === d ? "#bef24a" : "#555",
-                }}>{d < 60 ? `${d}m` : `${d / 60}h`.replace(".5h", "h30")}</button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Reminders */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.4rem" }}>REMIND ME</label>
-          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-            {REMINDER_CHOICES.map(({ m, label }) => {
-              const on = reminders.includes(m);
-              return (
-                <button key={m} onClick={() => toggleReminder(m)} style={{
-                  padding: "0.3rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem",
-                  fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 600,
-                  border: `1px solid ${on ? "rgba(107,159,255,0.6)" : "rgba(255,255,255,0.08)"}`,
-                  background: on ? "rgba(107,159,255,0.14)" : "transparent",
-                  color: on ? "#6b9fff" : "#555",
-                }}>{on ? "✓ " : ""}{label}</button>
-              );
-            })}
-          </div>
-        </div>
-
-        {error && <p style={{ color: "#ff6b6b", fontSize: "0.76rem", marginBottom: "0.9rem", textAlign: "center" }}>{error}</p>}
-
-        {/* Actions: one-click insert where the provider supports it, .ics always. */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-          {backend && (
-            <GlassButton onClick={onAddViaApi} accent="#bef24a" disabled={!!busy} style={{ width: "100%", padding: "0.85rem" }}>
-              {busy === "api" ? "Connecting…" : `Add to ${backend.label}`}
-            </GlassButton>
-          )}
-          <GlassButton onClick={onDownloadICS} disabled={!!busy} style={{ width: "100%", padding: "0.85rem", ...(backend ? {} : { color: "#bef24a" }) }}>
-            ↓ Download .ics {backend ? "(any calendar)" : "(Apple, Outlook, any app)"}
-          </GlassButton>
-        </div>
-        {!backend && (
-          <p style={{ fontSize: "0.68rem", color: "#444", textAlign: "center", marginTop: "0.9rem", lineHeight: 1.5 }}>
-            One-click add is available when you sign in with Google or Microsoft.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // TaskModal now lives in ./ui (imported above).
 
