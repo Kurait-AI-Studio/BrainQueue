@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   CATEGORIES,
@@ -11,9 +11,19 @@ import {
   TASK_LIST_SCHEMA,
   sanitizeTask,
 } from "./brainDumpSpec";
-import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, AnalyticsModal, TaskModal, TaskDetailModal, SettingsModal, FocusSetsScreen, XpBurst, SetCelebration, AppSidebar } from "./ui";
+import { glass, glassStrong, useHover, GlassButton, ViewTab, TierBadge, TaskCard, DoneCard, MouseGlow, Dim, EmptyState, InlineCatAdd, Toast, XpBurst, SetCelebration, AppSidebar } from "./ui";
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
 import { createOutbox, eventUuid } from "./lib/telemetry";
+
+// Code-split the heavy, on-demand screens/modals: they're only mounted on a user action
+// (open settings, edit a task, view analytics, enter Focus Mode), so keeping them out of
+// the initial bundle cuts first-load JS. Each becomes its own async chunk; React.lazy
+// loads it the first time it renders. Named exports → mapped to default for lazy().
+const AnalyticsModal = lazy(() => import("./ui/AnalyticsModal").then(m => ({ default: m.AnalyticsModal })));
+const TaskModal = lazy(() => import("./ui/TaskModal").then(m => ({ default: m.TaskModal })));
+const TaskDetailModal = lazy(() => import("./ui/TaskDetailModal").then(m => ({ default: m.TaskDetailModal })));
+const SettingsModal = lazy(() => import("./ui/SettingsModal").then(m => ({ default: m.SettingsModal })));
+const FocusSetsScreen = lazy(() => import("./ui/FocusSetsScreen").then(m => ({ default: m.FocusSetsScreen })));
 
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -1751,20 +1761,20 @@ function MainApp({ session }) {
         </div>
       </div>
 
-      {showSettings && <SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => setShowSettings(false)} />}
+      {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => setShowSettings(false)} /></Suspense>}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={weights} />}
-      {(showAdd || editTask) && <TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} />}
+      {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
-      {showAnalytics && <AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} />}
+      {showAnalytics && <Suspense fallback={null}><AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} /></Suspense>}
       {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} tone={reviewTone} onClose={() => setShowReview(false)}
         onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), tone: r.tone, completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
-      {detailTask && <TaskDetailModal task={tasks.find(t => t.id === detailTask.id) || detailTask} weights={weights} inSession={sessionDraft.includes(detailTask.id)}
+      {detailTask && <Suspense fallback={null}><TaskDetailModal task={tasks.find(t => t.id === detailTask.id) || detailTask} weights={weights} inSession={sessionDraft.includes(detailTask.id)}
         onClose={() => setDetailTask(null)}
         onEdit={(t) => { setDetailTask(null); setEditTask(t); }}
         onMarkDone={(id) => { markDone(id); setDetailTask(null); }}
         onDelete={(id) => { deleteTask(id); setDetailTask(null); }}
         onSchedule={(t) => { setDetailTask(null); setScheduleTask(t); }}
-        onAddToSession={addToSession} onFocusNow={focusNow} />}
+        onAddToSession={addToSession} onFocusNow={focusNow} /></Suspense>}
       {sessionDraft.length > 0 && !showSessionSetup && !focusSession && (
         <div style={{ position: "fixed", left: "50%", bottom: 22, transform: "translateX(-50%)", zIndex: 240, display: "flex", alignItems: "center", gap: 14, background: "#14141a", border: "1px solid rgba(190,242,74,0.4)", borderRadius: 999, padding: "0.6rem 0.7rem 0.6rem 1.1rem", boxShadow: "0 16px 40px rgba(0,0,0,0.5)", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", color: "#ededf0" }}>
           <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>🎯 {sessionDraft.length} task{sessionDraft.length === 1 ? "" : "s"} queued for focus</span>
@@ -1772,7 +1782,7 @@ function MainApp({ session }) {
           <button onClick={startTraySession} style={{ background: "#bef24a", border: "none", borderRadius: 999, padding: "0.5rem 1.1rem", color: "#0a0a0d", fontWeight: 800, fontSize: "0.82rem", cursor: "pointer", fontFamily: "inherit" }}>Start focus →</button>
         </div>
       )}
-      {showSessionSetup && <FocusSetsScreen tasks={sorted} session={session} onStart={startSession} initialDraftIds={seedDraftIds} onExit={() => { setShowSessionSetup(false); setSeedDraftIds([]); }} />}
+      {showSessionSetup && <Suspense fallback={null}><FocusSetsScreen tasks={sorted} session={session} onStart={startSession} initialDraftIds={seedDraftIds} onExit={() => { setShowSessionSetup(false); setSeedDraftIds([]); }} /></Suspense>}
       {focusSession && <FocusMode session={focusSession} tasks={tasks} onMarkDone={markDone} onExit={endSession} />}
       <XpBurst burst={xpBurst} onDone={() => setXpBurst(null)} />
       <SetCelebration celebration={celebration} onDone={() => setCelebration(null)} />
