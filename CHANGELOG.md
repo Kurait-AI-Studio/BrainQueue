@@ -7,6 +7,30 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-06-23
+Tell Focus Mode how much time you actually have, and trust the event log: a max-work-time
+ceiling reshapes the proposed sets, and telemetry now delivers durably and records the full
+shape of every focus set.
+
+### Added
+- **Max work time in Focus Mode.** A slider (15 min – 3h) sets how long you're willing to
+  work. It's a **ceiling, not a target**: each set fills up to it, so giving it more time only
+  adds a task when one actually fits — sets whose tasks are all short (Quick Wins) often stay
+  put while a set of long tasks (Deep Work) grows. The chosen ceiling is recorded as
+  `max_work_minutes` on `session_started`.
+- **Set composition is now in the event log.** `session_started` records the original
+  proposal (`base_set_ids`) and the set you actually run (`final_ids`); `session_completed`
+  records `completed_ids` + `planned_ids`. The full lifecycle of a focus set is reconstructable
+  from two immutable events alone — independent of the mutable sessions row.
+- **Add animation.** A task that newly joins a set — via the slider or the editor's **＋ Add** —
+  animates in with a brief highlight ring. Respects `prefers-reduced-motion`.
+
+### Fixed
+- **Durable telemetry delivery.** Events are no longer fire-and-forget: each is written to a
+  localStorage outbox and retried (next event / reconnect / reload) instead of being silently
+  dropped on a transient failure. Retries are idempotent via a unique `event_id` (migration
+  0008), so the immutable log never loses an event, leaves a sequence gap, or double-writes.
+
 ## [2.1.0] — 2026-06-23
 Make focus sets yours: customize and reorder proposed sets, build custom sets, open a rich
 task detail view, and queue tasks into a session — all captured as set-origin telemetry.
