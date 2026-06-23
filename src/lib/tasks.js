@@ -14,7 +14,7 @@ export const CATEGORY_COLORS = {
   Personal: { accent: "#ffaa5e", glow: "255,170,94" },
 };
 // Custom categories get a stable colour derived from their name (hash → palette).
-export const CAT_PALETTE = ["#ff6b6b","#6b9fff","#ffb347","#6bffb3","#c47bff","#5de8ff","#ffaa5e","#e8ff5a","#ff8fd0","#7cffb2","#ff7a5c","#a78bff"];
+export const CAT_PALETTE = ["#ff6b6b","#6b9fff","#ffb347","#6bffb3","#c47bff","#5de8ff","#ffaa5e","#bef24a","#ff8fd0","#7cffb2","#ff7a5c","#a78bff"];
 export const hashStr = (s = "") => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 export const CAT_ACCENT = (cat) => CATEGORY_COLORS[cat]?.accent || CAT_PALETTE[hashStr(cat) % CAT_PALETTE.length];
 export const hexToRgb = (hex) => { const n = parseInt(hex.replace("#", ""), 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; };

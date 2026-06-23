@@ -18,7 +18,7 @@ export function GlassButton({ onClick, children, accent, style = {}, disabled, c
         background: hov ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.04)",
         boxShadow: hov ? `0 0 20px ${accent ? accent + "44" : "rgba(255,255,255,0.1)"}, inset 0 1px 0 rgba(255,255,255,0.12)` : glass.boxShadow,
         cursor: disabled ? "not-allowed" : "pointer",
-        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.82rem",
+        fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.82rem",
         transform: pressed ? "scale(0.97)" : hov ? "scale(1.02)" : "scale(1)",
         transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
         opacity: disabled ? 0.4 : 1, ...style,

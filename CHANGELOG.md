@@ -7,6 +7,12 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+### Changed
+- **Unified the design language.** The app had drifted into two themes — a lime `#e8ff5a`
+  accent with Syne + DM Mono on the older modals/list, and a green `#bef24a` with Plus Jakarta
+  Sans on the v2 Focus Mode screens. Consolidated onto one accent and one font, now defined as
+  tokens in `src/ui/tokens.js` (`accent`, `bg`, `font`). The app loads a single font.
+
 ## [2.2.1] — 2026-06-23
 Faster first load, and a test net under the telemetry moat.
 

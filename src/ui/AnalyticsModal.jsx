@@ -22,7 +22,7 @@ export function AnalyticsModal({ tasks, customCategories, onClose }) {
   const Section = ({ title, action, children }) => (
     <div style={{ marginTop: "1.4rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
-        <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#888", fontWeight: 700 }}>{title}</h3>
+        <h3 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#888", fontWeight: 700 }}>{title}</h3>
         {action}
       </div>
       {children}
@@ -33,14 +33,14 @@ export function AnalyticsModal({ tasks, customCategories, onClose }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 120, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "1.5rem 1rem", backdropFilter: "blur(8px)", overflow: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ ...glassStrong, borderRadius: "22px", width: "100%", maxWidth: "660px", padding: "1.8rem", margin: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.3rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>📊 Analytics</h2>
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>📊 Analytics</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer" }}>×</button>
         </div>
 
         <div style={{ display: "flex", gap: "0.6rem", marginBottom: "0.6rem" }}>
-          <StatCard label="Active tasks" value={active.length} accent="#e8ff5a" />
+          <StatCard label="Active tasks" value={active.length} accent="#bef24a" />
           <StatCard label="Completed" value={done.length} accent="#6bffb3" />
-          <StatCard label={`Level · ${lvl.title}`} value={lvl.level} accent="#e8ff5a" />
+          <StatCard label={`Level · ${lvl.title}`} value={lvl.level} accent="#bef24a" />
         </div>
         <div style={{ display: "flex", gap: "0.6rem" }}>
           <StatCard label="Done today" value={todayScore(tasks)} accent="#6b9fff" />
@@ -67,7 +67,7 @@ export function AnalyticsModal({ tasks, customCategories, onClose }) {
             return (
               <div key={c} style={{ marginBottom: "0.65rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.25rem" }}>
-                  <span style={{ color: acc, fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>{c}</span>
+                  <span style={{ color: acc, fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 600 }}>{c}</span>
                   <span style={{ color: "#777" }}>{d}/{inCat.length} · {pct}%</span>
                 </div>
                 <div style={{ height: "7px", borderRadius: "20px", background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
@@ -83,10 +83,10 @@ export function AnalyticsModal({ tasks, customCategories, onClose }) {
             {[["week", "This week"], ["month", "This month"]].map(([p, label]) => (
               <button key={p} onClick={() => setPeriod(p)} style={{
                 padding: "0.25rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.68rem",
-                fontFamily: "'Syne', sans-serif", fontWeight: 700,
+                fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700,
                 border: `1px solid ${period === p ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.1)"}`,
                 background: period === p ? "rgba(232,255,90,0.14)" : "transparent",
-                color: period === p ? "#e8ff5a" : "#777",
+                color: period === p ? "#bef24a" : "#777",
               }}>{label}</button>
             ))}
           </div>
@@ -94,7 +94,7 @@ export function AnalyticsModal({ tasks, customCategories, onClose }) {
           <div style={{ ...glass, borderRadius: "14px", padding: "0.9rem 1rem" }}>
             <MiniBars data={series} height={96} />
             <p style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.6rem", textAlign: "center" }}>
-              <b style={{ color: "#e8ff5a" }}>{periodCount}</b> task{periodCount === 1 ? "" : "s"} completed {period === "week" ? "this week" : "this month"} · score {periodCount}
+              <b style={{ color: "#bef24a" }}>{periodCount}</b> task{periodCount === 1 ? "" : "s"} completed {period === "week" ? "this week" : "this month"} · score {periodCount}
             </p>
           </div>
         </Section>

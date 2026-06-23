@@ -110,7 +110,7 @@ function ProviderButton({ provider, busy, onClick }) {
       style={{
         width: "100%", padding: "0.85rem 1rem", borderRadius: "12px",
         display: "flex", alignItems: "center", justifyContent: "center", gap: "0.6rem",
-        fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.85rem",
+        fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.85rem",
         cursor: busy ? "not-allowed" : "pointer", opacity: busy && busy !== provider.id ? 0.45 : 1,
         transition: "all 0.18s cubic-bezier(0.34,1.56,0.64,1)",
         transform: hov && !busy ? "translateY(-1px)" : "none",
@@ -149,7 +149,7 @@ function LoginScreen() {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: "#060610", padding: "1rem", fontFamily: "'DM Mono', monospace",
+      background: "#0a0a0d", padding: "1rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     }}>
       <MouseGlow />
       <div style={{
@@ -157,11 +157,11 @@ function LoginScreen() {
         width: "100%", maxWidth: "380px", position: "relative", zIndex: 1,
       }}>
         <h1 style={{
-          fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.9rem",
+          fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "1.9rem",
           letterSpacing: "-0.03em", textAlign: "center", marginBottom: "0.25rem",
         }}>
           <span style={{ color: "#e8e8e8" }}>Brain</span>
-          <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
+          <span style={{ color: "#bef24a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
         </h1>
         <p style={{ color: "#444", fontSize: "0.74rem", textAlign: "center", marginBottom: "2rem" }}>
           your tasks, on every device
@@ -175,7 +175,7 @@ function LoginScreen() {
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📬</div>
             <p style={{ color: "#ccc", fontSize: "0.86rem", lineHeight: 1.7 }}>
-              Magic link sent to<br /><strong style={{ color: "#e8ff5a" }}>{email}</strong>
+              Magic link sent to<br /><strong style={{ color: "#bef24a" }}>{email}</strong>
             </p>
             <p style={{ color: "#444", fontSize: "0.72rem", marginTop: "0.75rem" }}>Open it on this device to sign in.</p>
             <button onClick={() => { setSent(false); setEmail(""); }}
@@ -204,7 +204,7 @@ function LoginScreen() {
               autoCapitalize="none" autoCorrect="off" spellCheck="false"
               style={{
                 ...glass, borderRadius: "10px", padding: "0.85rem 1rem", marginBottom: "0.6rem",
-                color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'DM Mono', monospace",
+                color: "#e8e8e8", fontSize: "0.9rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
                 outline: "none", width: "100%", boxSizing: "border-box",
               }}
             />
@@ -213,8 +213,8 @@ function LoginScreen() {
               style={{
                 width: "100%", padding: "0.85rem",
                 background: "rgba(232,255,90,0.1)", border: "1px solid rgba(232,255,90,0.4)",
-                borderRadius: "12px", color: "#e8ff5a",
-                fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.85rem",
+                borderRadius: "12px", color: "#bef24a",
+                fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.85rem",
                 cursor: busy || !email.trim() ? "not-allowed" : "pointer",
                 opacity: busy || !email.trim() ? 0.5 : 1,
               }}>
@@ -230,9 +230,9 @@ function LoginScreen() {
         </p>
       </div>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #060610; overflow-x: hidden; max-width: 100%; }
+        html, body { background: #0a0a0d; overflow-x: hidden; max-width: 100%; }
         input { -webkit-appearance: none; appearance: none; }
       `}</style>
     </div>
@@ -243,11 +243,11 @@ function Splash() {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: "#060610", fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.4rem",
+      background: "#0a0a0d", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "1.4rem",
     }}>
       <span style={{ color: "#e8e8e8" }}>Brain</span>
-      <span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&display=swap'); body{background:#060610;}`}</style>
+      <span style={{ color: "#bef24a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800&display=swap'); body{background:#0a0a0d;}`}</style>
     </div>
   );
 }
@@ -690,32 +690,32 @@ function ScheduleModal({ task, session, onClose, onResult }) {
     }
   };
 
-  const fieldStyle = { ...glass, borderRadius: "10px", padding: "0.6rem 0.8rem", color: "#e8e8e8", fontSize: "0.82rem", fontFamily: "'DM Mono', monospace", outline: "none", boxSizing: "border-box", colorScheme: "dark" };
+  const fieldStyle = { ...glass, borderRadius: "10px", padding: "0.6rem 0.8rem", color: "#e8e8e8", fontSize: "0.82rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", outline: "none", boxSizing: "border-box", colorScheme: "dark" };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
       <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "440px", maxHeight: "90vh", overflow: "auto", padding: "1.8rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.15rem", color: "#fff", margin: 0 }}>📅 Add to calendar</h2>
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "1.15rem", color: "#fff", margin: 0 }}>📅 Add to calendar</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
         </div>
         <p style={{ fontSize: "0.78rem", color: "#888", margin: "0 0 1.3rem", lineHeight: 1.4 }}>{task.title}</p>
 
         {/* All-day toggle */}
         <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", cursor: "pointer" }}>
-          <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} style={{ accentColor: "#e8ff5a", width: "16px", height: "16px" }} />
-          <span style={{ fontSize: "0.8rem", color: "#bbb", fontFamily: "'Syne', sans-serif" }}>All-day event</span>
+          <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} style={{ accentColor: "#bef24a", width: "16px", height: "16px" }} />
+          <span style={{ fontSize: "0.8rem", color: "#bbb", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>All-day event</span>
         </label>
 
         {/* Date + (time / duration) */}
         <div style={{ display: "grid", gridTemplateColumns: allDay ? "1fr" : "1fr 1fr", gap: "0.6rem", marginBottom: "1.1rem" }}>
           <div>
-            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.3rem" }}>DATE</label>
+            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.3rem" }}>DATE</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...fieldStyle, width: "100%" }} />
           </div>
           {!allDay && (
             <div>
-              <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.3rem" }}>START</label>
+              <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.3rem" }}>START</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ ...fieldStyle, width: "100%" }} />
             </div>
           )}
@@ -723,15 +723,15 @@ function ScheduleModal({ task, session, onClose, onResult }) {
 
         {!allDay && (
           <div style={{ marginBottom: "1.1rem" }}>
-            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.4rem" }}>DURATION</label>
+            <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.4rem" }}>DURATION</label>
             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
               {[15, 30, 60, 90, 120].map(d => (
                 <button key={d} onClick={() => setDurationMin(d)} style={{
                   padding: "0.3rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem",
-                  fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 600,
                   border: `1px solid ${durationMin === d ? "rgba(232,255,90,0.6)" : "rgba(255,255,255,0.08)"}`,
                   background: durationMin === d ? "rgba(232,255,90,0.14)" : "transparent",
-                  color: durationMin === d ? "#e8ff5a" : "#555",
+                  color: durationMin === d ? "#bef24a" : "#555",
                 }}>{d < 60 ? `${d}m` : `${d / 60}h`.replace(".5h", "h30")}</button>
               ))}
             </div>
@@ -740,14 +740,14 @@ function ScheduleModal({ task, session, onClose, onResult }) {
 
         {/* Reminders */}
         <div style={{ marginBottom: "1.5rem" }}>
-          <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Syne', sans-serif", display: "block", marginBottom: "0.4rem" }}>REMIND ME</label>
+          <label style={{ fontSize: "0.68rem", color: "#666", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "block", marginBottom: "0.4rem" }}>REMIND ME</label>
           <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
             {REMINDER_CHOICES.map(({ m, label }) => {
               const on = reminders.includes(m);
               return (
                 <button key={m} onClick={() => toggleReminder(m)} style={{
                   padding: "0.3rem 0.7rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.72rem",
-                  fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 600,
                   border: `1px solid ${on ? "rgba(107,159,255,0.6)" : "rgba(255,255,255,0.08)"}`,
                   background: on ? "rgba(107,159,255,0.14)" : "transparent",
                   color: on ? "#6b9fff" : "#555",
@@ -762,11 +762,11 @@ function ScheduleModal({ task, session, onClose, onResult }) {
         {/* Actions: one-click insert where the provider supports it, .ics always. */}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
           {backend && (
-            <GlassButton onClick={onAddViaApi} accent="#e8ff5a" disabled={!!busy} style={{ width: "100%", padding: "0.85rem" }}>
+            <GlassButton onClick={onAddViaApi} accent="#bef24a" disabled={!!busy} style={{ width: "100%", padding: "0.85rem" }}>
               {busy === "api" ? "Connecting…" : `Add to ${backend.label}`}
             </GlassButton>
           )}
-          <GlassButton onClick={onDownloadICS} disabled={!!busy} style={{ width: "100%", padding: "0.85rem", ...(backend ? {} : { color: "#e8ff5a" }) }}>
+          <GlassButton onClick={onDownloadICS} disabled={!!busy} style={{ width: "100%", padding: "0.85rem", ...(backend ? {} : { color: "#bef24a" }) }}>
             ↓ Download .ics {backend ? "(any calendar)" : "(Apple, Outlook, any app)"}
           </GlassButton>
         </div>
@@ -933,7 +933,7 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
       <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "640px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>Brain Dump</h2>
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>Brain Dump</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
         </div>
         {!parsed ? (
@@ -941,8 +941,8 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
             <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1rem", lineHeight: 1.7 }}>Paste anything — numbered, prose, checkboxes, any language. The model extracts and scores the tasks; you tweak before adding.</p>
             <textarea value={dump} onChange={e => setDump(e.target.value)} onKeyDown={onKey} autoFocus
               placeholder={"5. Se renseigner sur Runpod\n6. Faire recette Sauce carotte\n7. Entreprise Mansa remplir documents\n8. Create Obsidian vault"}
-              style={{ width: "100%", minHeight: "180px", ...glass, borderRadius: "12px", padding: "1rem", color: "#ccc", fontSize: "0.87rem", fontFamily: "'DM Mono', monospace", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
-            <GlassButton onClick={parseDump} disabled={loading || !dump.trim()} accent="#e8ff5a" style={{ marginTop: "1rem", width: "100%", padding: "0.9rem" }}>
+              style={{ width: "100%", minHeight: "180px", ...glass, borderRadius: "12px", padding: "1rem", color: "#ccc", fontSize: "0.87rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+            <GlassButton onClick={parseDump} disabled={loading || !dump.trim()} accent="#bef24a" style={{ marginTop: "1rem", width: "100%", padding: "0.9rem" }}>
               {loading ? "Classifying…" : "Parse & classify →"}
             </GlassButton>
             <p style={{ color: "#2e2e2e", fontSize: "0.65rem", textAlign: "center", marginTop: "0.6rem" }}>⌘/Ctrl + Enter · model: {BRAIN_DUMP_MODEL}</p>
@@ -950,7 +950,7 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
           </>
         ) : (
           <>
-            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1.2rem" }}>Found <strong style={{ color: "#e8ff5a" }}>{parsed.length} task{parsed.length === 1 ? "" : "s"}</strong>. Edit anything, then add.</p>
+            <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1.2rem" }}>Found <strong style={{ color: "#bef24a" }}>{parsed.length} task{parsed.length === 1 ? "" : "s"}</strong>. Edit anything, then add.</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1.5rem" }}>
               {parsed.map((t, i) => {
                 const acc = CAT_ACCENT(t.category);
@@ -958,15 +958,15 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
                   <div key={i} style={{ ...glass, borderRadius: "12px", padding: "0.85rem 1rem", borderLeft: `2px solid ${acc}66` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "0.6rem", alignItems: "center" }}>
                       <input value={t.title} onChange={e => updateTask(i, { title: e.target.value })}
-                        style={{ flex: 1, minWidth: 0, background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#ddd", fontSize: "0.87rem", fontWeight: 600, fontFamily: "'DM Mono', monospace", outline: "none", padding: "2px 0" }} />
-                      <span style={{ fontSize: "0.68rem", color: "#e8ff5a", fontWeight: 700, whiteSpace: "nowrap" }}>Score {calcScore(t, weights)}</span>
+                        style={{ flex: 1, minWidth: 0, background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,0.06)", color: "#ddd", fontSize: "0.87rem", fontWeight: 600, fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", outline: "none", padding: "2px 0" }} />
+                      <span style={{ fontSize: "0.68rem", color: "#bef24a", fontWeight: 700, whiteSpace: "nowrap" }}>Score {calcScore(t, weights)}</span>
                       <button onClick={() => removeTask(i)} title="Remove"
                         style={{ background: "none", border: "none", color: "#2a2a2a", cursor: "pointer", fontSize: "0.85rem" }}
                         onMouseEnter={e => e.target.style.color = "#ef4444"} onMouseLeave={e => e.target.style.color = "#2a2a2a"}>🗑</button>
                     </div>
                     <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.55rem", flexWrap: "wrap", alignItems: "center" }}>
                       <select value={t.category} onChange={e => updateTask(i, { category: e.target.value })}
-                        style={{ background: acc + "14", border: `1px solid ${acc}33`, borderRadius: "20px", color: acc, fontSize: "0.66rem", fontFamily: "'Syne', sans-serif", fontWeight: 700, padding: "2px 8px", outline: "none", cursor: "pointer", appearance: "none" }}>
+                        style={{ background: acc + "14", border: `1px solid ${acc}33`, borderRadius: "20px", color: acc, fontSize: "0.66rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, padding: "2px 8px", outline: "none", cursor: "pointer", appearance: "none" }}>
                         {CATEGORIES.map(c => <option key={c} value={c} style={{ background: "#101018", color: "#ddd" }}>{c}</option>)}
                       </select>
                       <Dim label="U" value={t.urgency} onChange={v => updateTask(i, { urgency: v })} />
@@ -981,7 +981,7 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
             </div>
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <GlassButton onClick={() => setParsed(null)} style={{ flex: 1 }}>← Back</GlassButton>
-              <GlassButton onClick={confirmAdd} disabled={!parsed.length} accent="#e8ff5a" style={{ flex: 2 }}>Add {parsed.length} task{parsed.length === 1 ? "" : "s"} →</GlassButton>
+              <GlassButton onClick={confirmAdd} disabled={!parsed.length} accent="#bef24a" style={{ flex: 2 }}>Add {parsed.length} task{parsed.length === 1 ? "" : "s"} →</GlassButton>
             </div>
           </>
         )}
@@ -1018,8 +1018,8 @@ function BrainDumpModal({ onClose, onTasksAdded, weights }) {
 function WeeklyStat({ label, value, sub, accent }) {
   return (
     <div style={{ ...glass, borderRadius: "14px", padding: "0.85rem 0.9rem", flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: "1.45rem", fontWeight: 800, fontFamily: "'Syne', sans-serif", color: accent, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: "0.66rem", color: "#8a8a96", marginTop: "0.3rem", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+      <div style={{ fontSize: "1.45rem", fontWeight: 800, fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", color: accent, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: "0.66rem", color: "#8a8a96", marginTop: "0.3rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
       {sub && <div style={{ fontSize: "0.62rem", color: "#5a5a66", marginTop: "0.15rem" }}>{sub}</div>}
     </div>
   );
@@ -1037,8 +1037,8 @@ function WeeklyReviewModal({ tasks, weights, tone, onClose, onView }) {
       <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.4rem" }}>
           <div>
-            <div style={{ fontSize: "0.66rem", color: "#e8ff5a", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "0.25rem" }}>Weekly review</div>
-            <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>Your week in review</h2>
+            <div style={{ fontSize: "0.66rem", color: "#bef24a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "0.25rem" }}>Weekly review</div>
+            <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "1.3rem", color: "#fff", margin: 0 }}>Your week in review</h2>
             <div style={{ fontSize: "0.72rem", color: "#6b6b76", marginTop: "0.2rem" }}>{range.label}</div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
@@ -1048,7 +1048,7 @@ function WeeklyReviewModal({ tasks, weights, tone, onClose, onView }) {
           <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1.4rem" }}>
             <WeeklyStat label="Completed" value={stats.completed} accent="#6bffb3"
               sub={stats.delta === 0 ? "same as last week" : `${stats.delta > 0 ? "+" : ""}${stats.delta} vs last week`} />
-            {stats.captureRate != null && <WeeklyStat label="Of this week's adds" value={`${stats.captureRate}%`} accent="#e8ff5a" sub="already done" />}
+            {stats.captureRate != null && <WeeklyStat label="Of this week's adds" value={`${stats.captureRate}%`} accent="#bef24a" sub="already done" />}
             {stats.focusMinutes >= 1 && <WeeklyStat label="Focused effort" value={stats.focusLabel} accent="#6b9fff" sub={`${stats.openNow} still open`} />}
           </div>
         )}
@@ -1061,7 +1061,7 @@ function WeeklyReviewModal({ tasks, weights, tone, onClose, onView }) {
 
         {hasData && perCategory.length > 0 && (
           <div style={{ marginBottom: "1.3rem" }}>
-            <div style={{ fontSize: "0.66rem", color: "#6b6b76", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>By category</div>
+            <div style={{ fontSize: "0.66rem", color: "#6b6b76", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.6rem" }}>By category</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
               {perCategory.map(({ cat, count }) => {
                 const acc = CAT_ACCENT(cat);
@@ -1080,8 +1080,8 @@ function WeeklyReviewModal({ tasks, weights, tone, onClose, onView }) {
         )}
 
         {hasData && stats.biggestWin && (
-          <div style={{ ...glass, borderRadius: "12px", padding: "0.75rem 0.9rem", marginBottom: "1.3rem", borderLeft: "2px solid #e8ff5a66" }}>
-            <div style={{ fontSize: "0.62rem", color: "#6b6b76", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>🏆 Biggest win</div>
+          <div style={{ ...glass, borderRadius: "12px", padding: "0.75rem 0.9rem", marginBottom: "1.3rem", borderLeft: "2px solid #bef24a66" }}>
+            <div style={{ fontSize: "0.62rem", color: "#6b6b76", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>🏆 Biggest win</div>
             <div style={{ fontSize: "0.86rem", color: "#ddd", marginTop: "0.25rem" }}>{stats.biggestWin.title}</div>
           </div>
         )}
@@ -1197,7 +1197,7 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
     setPhase("work"); setSecondsLeft(session.work * 60);
   };
 
-  const shell = { position: "fixed", inset: 0, zIndex: 300, background: "radial-gradient(900px 600px at 50% 35%, rgba(232,255,90,0.05), transparent 60%), #060610", color: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "2rem", fontFamily: "'DM Mono', monospace" };
+  const shell = { position: "fixed", inset: 0, zIndex: 300, background: "radial-gradient(900px 600px at 50% 35%, rgba(232,255,90,0.05), transparent 60%), #0a0a0d", color: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "2rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" };
 
   // INTRO ceremony
   if (phase === "intro") {
@@ -1205,8 +1205,8 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
     return (
       <div style={shell}>
         <div className="task-enter" style={{ maxWidth: "560px" }}>
-          <p style={{ fontFamily: "'Syne', sans-serif", color: "#555", letterSpacing: "0.3em", textTransform: "uppercase", fontSize: "0.7rem" }}>Focus</p>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.6rem, 5vw, 2.4rem)", color: "#fff", margin: "1rem 0", lineHeight: 1.2 }}>{current ? current.title : "Let's begin"}</h1>
+          <p style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", color: "#555", letterSpacing: "0.3em", textTransform: "uppercase", fontSize: "0.7rem" }}>Focus</p>
+          <h1 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "clamp(1.6rem, 5vw, 2.4rem)", color: "#fff", margin: "1rem 0", lineHeight: 1.2 }}>{current ? current.title : "Let's begin"}</h1>
           {heavy && <p style={{ color: "#888", fontSize: "0.9rem" }}>Take a breath. What does “done” look like?</p>}
           <p style={{ color: "#444", fontSize: "0.78rem", marginTop: "1.5rem" }}>{session.work}-minute focus · {remaining.length} task{remaining.length === 1 ? "" : "s"}</p>
         </div>
@@ -1220,12 +1220,12 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
       <div style={shell}>
         <div className="task-enter">
           <div style={{ fontSize: "2.4rem", marginBottom: "0.6rem" }}>✓</div>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.8rem", color: "#e8ff5a", margin: 0 }}>Session complete</h1>
+          <h1 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "1.8rem", color: "#bef24a", margin: 0 }}>Session complete</h1>
           <p style={{ color: "#aaa", fontSize: "0.95rem", marginTop: "1rem", lineHeight: 1.9 }}>
             <b style={{ color: "#6bffb3" }}>{completed.length}</b> task{completed.length === 1 ? "" : "s"} done ·{" "}
-            <b style={{ color: "#e8ff5a" }}>{mmss(focusSec.current)}</b> focused · <b style={{ color: "#6b9fff" }}>{pomos}</b> pomodoro{pomos === 1 ? "" : "s"}
+            <b style={{ color: "#bef24a" }}>{mmss(focusSec.current)}</b> focused · <b style={{ color: "#6b9fff" }}>{pomos}</b> pomodoro{pomos === 1 ? "" : "s"}
           </p>
-          <GlassButton onClick={finish} accent="#e8ff5a" style={{ marginTop: "1.8rem", padding: "0.8rem 2rem" }}>Done</GlassButton>
+          <GlassButton onClick={finish} accent="#bef24a" style={{ marginTop: "1.8rem", padding: "0.8rem 2rem" }}>Done</GlassButton>
         </div>
       </div>
     );
@@ -1233,7 +1233,7 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
 
   // WORK / BREAK — calm, single-task screen: a timer bar up top, one focus card below.
   const isBreak = phase === "break";
-  const accent = isBreak ? "#6b9fff" : "#e8ff5a";
+  const accent = isBreak ? "#6b9fff" : "#bef24a";
   const taskTotal = session.taskIds.length;
   const taskPos = Math.min(completed.length + 1, taskTotal);
   const tier = current ? TIER[taskTier(current)] : null;
@@ -1244,20 +1244,20 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
   const pill = { display: "inline-flex", flexDirection: "column", alignItems: "center", gap: "0.05rem", padding: "0.4rem 1.3rem", borderRadius: "14px", ...glass, border: `1px solid ${accent}44`, opacity: running ? 1 : 0.55, transition: "opacity .3s" };
   const card = { ...glassStrong, position: "relative", width: "100%", maxWidth: "620px", borderRadius: "24px", padding: "2.6rem 2rem 2rem", border: `1px solid ${accent}22`, boxShadow: `0 0 80px ${accent}10`, textAlign: "center" };
   const badge = { width: "54px", height: "54px", margin: "0 auto 1.4rem", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: "1.4rem", background: `${accent}14`, border: `1px solid ${accent}55`, boxShadow: `0 0 24px ${accent}33` };
-  const eyebrow = { fontFamily: "'Syne', sans-serif", color: accent, letterSpacing: "0.28em", textTransform: "uppercase", fontSize: "0.66rem", opacity: 0.85, margin: 0 };
+  const eyebrow = { fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", color: accent, letterSpacing: "0.28em", textTransform: "uppercase", fontSize: "0.66rem", opacity: 0.85, margin: 0 };
   const btn = { padding: "0.8rem 1.2rem", flex: "1 1 auto" };
 
   return (
     <div style={stage}>
       {/* top bar: wordmark · timer · exit */}
       <div style={topbar}>
-        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.05rem", color: "#fff" }}>Brain<span style={{ color: "#e8ff5a" }}>Queue</span></span>
+        <span style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "1.05rem", color: "#fff" }}>Brain<span style={{ color: "#bef24a" }}>Queue</span></span>
         <div style={pill}>
           <span style={{ fontSize: "1.15rem", fontWeight: 700, color: "#fff", letterSpacing: "0.02em" }}>{mmss(secondsLeft)}</span>
           <span style={{ fontSize: "0.56rem", letterSpacing: "0.18em", textTransform: "uppercase", color: accent }}>{running ? (isBreak ? "Break time" : "Focus time") : "Paused"}</span>
         </div>
         <button onClick={finish} title="End session"
-          style={{ background: "none", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#888", fontSize: "0.74rem", padding: "0.45rem 0.8rem", cursor: "pointer", fontFamily: "'DM Mono', monospace" }}>✕ Exit Focus</button>
+          style={{ background: "none", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#888", fontSize: "0.74rem", padding: "0.45rem 0.8rem", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>✕ Exit Focus</button>
       </div>
 
       {/* centered focus card */}
@@ -1265,7 +1265,7 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
         <div className="task-enter" style={card}>
           <div style={badge}>{isBreak ? "☕" : "✓"}</div>
           <p style={eyebrow}>{isBreak ? "On a break" : "Your current focus"}</p>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "clamp(1.4rem, 4vw, 2.1rem)", color: "#fff", margin: "0.7rem 0 0", lineHeight: 1.2 }}>
+          <h1 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "clamp(1.4rem, 4vw, 2.1rem)", color: "#fff", margin: "0.7rem 0 0", lineHeight: 1.2 }}>
             {isBreak ? "Breathe — look away from the screen" : (current ? current.title : "All tasks done — wrap up")}
           </h1>
           <p style={{ color: "#7a7a86", fontSize: "0.8rem", margin: "0.9rem 0 0", lineHeight: 1.6, maxWidth: "440px", marginInline: "auto" }}>
@@ -1288,7 +1288,7 @@ function FocusMode({ session, tasks, onMarkDone, onExit }) {
               <GlassButton onClick={endBreak} accent="#6bffb3" style={btn}>▶ Resume focus</GlassButton>
             ) : (
               <>
-                {current && <GlassButton onClick={doneCurrent} accent="#e8ff5a" style={btn}>✓ Complete task</GlassButton>}
+                {current && <GlassButton onClick={doneCurrent} accent="#bef24a" style={btn}>✓ Complete task</GlassButton>}
                 <GlassButton onClick={takeBreak} style={btn}>☕ Take a short break</GlassButton>
                 <GlassButton onClick={() => setRunning(r => !r)} style={btn}>{running ? "⏸ Pause focus" : "▶ Resume"}</GlassButton>
               </>
@@ -1615,15 +1615,15 @@ function MainApp({ session }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #060610; overflow-x: hidden; max-width: 100%; }
-        ::selection { background: #e8ff5a33; }
+        html, body { background: #0a0a0d; overflow-x: hidden; max-width: 100%; }
+        ::selection { background: #bef24a33; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
         input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; outline: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #e8ff5a; box-shadow: 0 0 8px #e8ff5a88; cursor: pointer; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #bef24a; box-shadow: 0 0 8px #bef24a88; cursor: pointer; }
         input, textarea { -webkit-appearance: none; appearance: none; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .task-enter { animation: fadeUp 0.28s cubic-bezier(0.34,1.2,0.64,1) both; }
@@ -1681,7 +1681,7 @@ function MainApp({ session }) {
           else if (id === "settings") setShowSettings(true);
         }} />
 
-      <div className="bq-shell app-main" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'DM Mono', monospace", position: "relative", zIndex: 1 }}>
+      <div className="bq-shell app-main" style={{ minHeight: "100vh", color: "#e0e0e0", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", position: "relative", zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ padding: "1.5rem 1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
@@ -1690,10 +1690,10 @@ function MainApp({ session }) {
               <div className="bq-topbar-left" style={{ display: "flex", alignItems: "center", gap: "0.7rem", minWidth: 0 }}>
                 <GlassButton onClick={() => setSidebarOpen(o => !o)} title="Menu" style={{ padding: "0.55rem 0.75rem", fontSize: "0.95rem", flexShrink: 0 }}>☰</GlassButton>
                 <div style={{ minWidth: 0 }}>
-                  <h1 className="bq-title" style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.5rem", letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap" }}>
-                    <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#e8ff5a", textShadow: "0 0 18px rgba(232,255,90,0.35)" }}>Queue</span>
+                  <h1 className="bq-title" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "1.5rem", letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap" }}>
+                    <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#bef24a", textShadow: "0 0 18px rgba(232,255,90,0.35)" }}>Queue</span>
                   </h1>
-                  <p className="bq-sub" style={{ fontSize: "0.7rem", color: "#555", marginTop: "0.35rem", whiteSpace: "nowrap", fontFamily: "'Syne', sans-serif" }}>
+                  <p className="bq-sub" style={{ fontSize: "0.7rem", color: "#555", marginTop: "0.35rem", whiteSpace: "nowrap", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
                     {active.length} active · {done.length} done
                     {syncStatus === "syncing" && <span style={{ color: "#6b9fff", marginLeft: "0.4rem" }}>↻</span>}
                     {syncStatus === "synced"  && <span style={{ color: "#6bffb3", marginLeft: "0.4rem" }}>✓</span>}
@@ -1705,7 +1705,7 @@ function MainApp({ session }) {
                 <GlassButton onClick={() => setShowSettings(true)} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.82rem" }}>⚙️<span className="bq-lbl"> Settings</span></GlassButton>
                 <GlassButton onClick={() => setShowSessionSetup(true)} title="Focus" accent="#6bffb3" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>▶<span className="bq-lbl"> Focus</span></GlassButton>
                 <GlassButton onClick={() => setShowDump(true)} title="Brain Dump" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>✨<span className="bq-lbl"> Brain Dump</span></GlassButton>
-                <GlassButton onClick={() => setShowAdd(true)} title="Add task" accent="#e8ff5a" style={{ padding: "0.55rem 0.9rem", fontSize: "0.82rem" }}>+<span className="bq-lbl"> Add</span></GlassButton>
+                <GlassButton onClick={() => setShowAdd(true)} title="Add task" accent="#bef24a" style={{ padding: "0.55rem 0.9rem", fontSize: "0.82rem" }}>+<span className="bq-lbl"> Add</span></GlassButton>
               </div>
             </div>
             <div style={{ display: "flex", gap: "0.4rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
@@ -1718,14 +1718,14 @@ function MainApp({ session }) {
           <div style={{ padding: "0.75rem 1.5rem", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
             <div style={{ maxWidth: "720px", margin: "0 auto", display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
               {["All", ...allCategories(syncedCategories)].map(c => {
-                const acc = c === "All" ? "#e8ff5a" : CAT_ACCENT(c); const act = filterCat === c;
+                const acc = c === "All" ? "#bef24a" : CAT_ACCENT(c); const act = filterCat === c;
                 return (
                   <button key={c} onClick={() => setFilterCat(c)} style={{
                     padding: "0.28rem 0.75rem", borderRadius: "20px",
                     border: `1px solid ${act ? acc + "60" : "rgba(255,255,255,0.06)"}`,
                     background: act ? acc + "14" : "transparent",
                     color: act ? acc : "#3a3a3a", fontSize: "0.73rem", cursor: "pointer",
-                    fontFamily: "'Syne', sans-serif", fontWeight: 600,
+                    fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 600,
                     transition: "background 0.15s, border-color 0.15s, color 0.15s",
                   }}>{c}</button>
                 );
@@ -1737,7 +1737,7 @@ function MainApp({ session }) {
 
         <div style={{ padding: "0.9rem 1.5rem 0.4rem" }}>
           <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-            <p style={{ fontSize: "0.7rem", color: "#3a3a3a", fontFamily: "'Syne', sans-serif", letterSpacing: "0.06em" }}>
+            <p style={{ fontSize: "0.7rem", color: "#3a3a3a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", letterSpacing: "0.06em" }}>
               <span style={{ color: "#6b6b76", fontWeight: 700 }}>{viewTasks?.length} {viewTasks?.length === 1 ? "TASK" : "TASKS"}</span> · {viewDescriptions[view].toUpperCase()}
             </p>
           </div>

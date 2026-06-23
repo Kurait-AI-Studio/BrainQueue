@@ -2,4 +2,4 @@
    dark canvas BrainQueue's glass components are designed against. */
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 :root { color-scheme: dark; }
-html, body { background: #060610; color: #e0e0e0; font-family: 'DM Mono', monospace; }
+html, body { background: #0a0a0d; color: #e0e0e0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }

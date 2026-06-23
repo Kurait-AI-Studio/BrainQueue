@@ -18,13 +18,13 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", backdropFilter: "blur(8px)" }}>
       <div style={{ ...glassStrong, borderRadius: "20px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflow: "auto", padding: "2rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.2rem", color: "#fff", margin: 0 }}>Settings</h2>
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontSize: "1.2rem", color: "#fff", margin: 0 }}>Settings</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
         </div>
 
         <div style={{ marginBottom: "0.5rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.4rem" }}>
-            <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Score Weights</label>
+            <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Score Weights</label>
             <span style={{ fontSize: "0.68rem", color: total === 100 ? "#6bffb3" : "#ffb347" }}>
               total: {total} {total !== 100 ? "(normalised)" : ""}
             </span>
@@ -35,8 +35,8 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(56px, 1fr))", gap: "0.4rem", marginBottom: "1.2rem" }}>
             {[["Urgency", w.urgency], ["Importance", w.importance], ["Quick win", w.effort], ["Low energy", w.energy], ["Pleasure", w.pleasure ?? 0]].map(([l, v]) => (
               <div key={l} style={{ ...glass, borderRadius: "10px", padding: "0.6rem", textAlign: "center" }}>
-                <div style={{ fontSize: "0.62rem", color: "#444", fontFamily: "'Syne', sans-serif", marginBottom: "0.2rem" }}>{l}</div>
-                <div style={{ fontSize: "1rem", fontWeight: 800, color: "#e8ff5a", fontFamily: "'Syne', sans-serif" }}>{pct(v)}%</div>
+                <div style={{ fontSize: "0.62rem", color: "#444", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", marginBottom: "0.2rem" }}>{l}</div>
+                <div style={{ fontSize: "1rem", fontWeight: 800, color: "#bef24a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>{pct(v)}%</div>
               </div>
             ))}
           </div>
@@ -48,7 +48,7 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
           <button onClick={() => setW(DEFAULT_WEIGHTS)} style={{
             background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px",
             color: "#444", fontSize: "0.72rem", cursor: "pointer", padding: "0.4rem 0.8rem",
-            fontFamily: "'Syne', sans-serif", marginBottom: "1.2rem", transition: "color 0.15s",
+            fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", marginBottom: "1.2rem", transition: "color 0.15s",
           }}
             onMouseEnter={e => e.target.style.color = "#aaa"} onMouseLeave={e => e.target.style.color = "#444"}>
             Reset to defaults
@@ -56,7 +56,7 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
         </div>
 
         <div style={{ marginBottom: "1.2rem" }}>
-          <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Weekly review tone</label>
+          <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Weekly review tone</label>
           <p style={{ fontSize: "0.72rem", color: "#333", margin: "0.4rem 0 0.8rem", lineHeight: 1.6 }}>How your weekly recap talks to you. {REVIEW_TONES[tone]?.hint}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.4rem" }}>
             {Object.entries(REVIEW_TONES).map(([key, t]) => {
@@ -64,9 +64,9 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
               return (
                 <button key={key} onClick={() => setTone(key)} style={{
                   ...glass, borderRadius: "10px", padding: "0.6rem", cursor: "pointer", textAlign: "left",
-                  border: `1px solid ${active ? "#e8ff5a66" : "rgba(255,255,255,0.06)"}`,
+                  border: `1px solid ${active ? "#bef24a66" : "rgba(255,255,255,0.06)"}`,
                   background: active ? "rgba(232,255,90,0.08)" : glass.background,
-                  color: active ? "#e8ff5a" : "#9a9aa6", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "0.78rem",
+                  color: active ? "#bef24a" : "#9a9aa6", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.78rem",
                   transition: "all 0.15s",
                 }}>
                   {t.emoji} {t.label}
@@ -76,7 +76,7 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
           </div>
         </div>
 
-        <GlassButton onClick={() => { onSave({ weights: w, reviewTone: tone }); onClose(); }} accent="#e8ff5a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
+        <GlassButton onClick={() => { onSave({ weights: w, reviewTone: tone }); onClose(); }} accent="#bef24a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
       </div>
     </div>
   );

@@ -41,7 +41,7 @@ const noop = () => {};
 function Block({ title, children, pad = true }) {
   return (
     <section style={{ marginBottom: "2.5rem" }}>
-      <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "0.8rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#6b6b76", marginBottom: "0.9rem" }}>{title}</h2>
+      <h2 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "0.8rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#6b6b76", marginBottom: "0.9rem" }}>{title}</h2>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.8rem", alignItems: "flex-start", ...(pad ? {} : {}) }}>{children}</div>
     </section>
   );
@@ -82,22 +82,22 @@ export function Gallery() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        body{background:#060610;color:#e0e0e0;font-family:'DM Mono',monospace}
+        body{background:#0a0a0d;color:#e0e0e0;font-family:'DM Mono',monospace}
         input[type=range]{-webkit-appearance:none;width:100%;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;outline:none}
-        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#e8ff5a;box-shadow:0 0 8px #e8ff5a88;cursor:pointer}
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#bef24a;box-shadow:0 0 8px #bef24a88;cursor:pointer}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
       `}</style>
       <MouseGlow />
       <div style={{ position: "relative", zIndex: 1, maxWidth: "760px", margin: "0 auto", padding: "2.5rem 1.25rem 6rem" }}>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1.6rem", marginBottom: "0.3rem" }}>
-          <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#e8ff5a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
+        <h1 style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 800, fontSize: "1.6rem", marginBottom: "0.3rem" }}>
+          <span style={{ color: "#e8e8e8" }}>Brain</span><span style={{ color: "#bef24a", textShadow: "0 0 20px rgba(232,255,90,0.4)" }}>Queue</span>
           <span style={{ color: "#555", fontSize: "0.9rem", marginLeft: "0.6rem" }}>UI gallery</span>
         </h1>
         <p style={{ color: "#555", fontSize: "0.78rem", marginBottom: "2.5rem" }}>Every extracted component with mock data — no login. Screenshot at any width to check layout.</p>
 
         <Block title="Buttons">
           <GlassButton onClick={noop}>Default</GlassButton>
-          <GlassButton onClick={noop} accent="#e8ff5a">+ Add</GlassButton>
+          <GlassButton onClick={noop} accent="#bef24a">+ Add</GlassButton>
           <GlassButton onClick={noop} accent="#6bffb3">▶ Focus</GlassButton>
           <ViewTab label="🔥 Do Now" active onClick={noop} />
           <ViewTab label="⚡ Quick Wins" active={false} onClick={noop} />
@@ -119,13 +119,13 @@ export function Gallery() {
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "0.8rem" }}>
             <div style={{ maxWidth: "264px" }}><XPBar tasks={mockTasks} /></div>
             <div style={{ display: "flex", gap: "0.6rem" }}>
-              <StatCard label="Active" value={active.length} accent="#e8ff5a" />
+              <StatCard label="Active" value={active.length} accent="#bef24a" />
               <StatCard label="Done" value={done.length} accent="#6bffb3" />
               <StatCard label="Avg pleasure" value="🙂" accent="#ff8fd0" />
             </div>
             <div style={{ display: "flex", gap: "1.4rem", alignItems: "center", flexWrap: "wrap" }}>
               <Donut donePct={Math.round(done.length / mockTasks.length * 100)} />
-              <FocusRing pct={62} color="#e8ff5a" big="14:32" sub="⬣ Heavy · ~2h" />
+              <FocusRing pct={62} color="#bef24a" big="14:32" sub="⬣ Heavy · ~2h" />
             </div>
             <div style={{ ...glass, borderRadius: "14px", padding: "0.9rem 1rem" }}>
               <MiniBars data={doneSeries(mockTasks, "week")} height={96} />
