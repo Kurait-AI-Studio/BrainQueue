@@ -7,6 +7,8 @@ import {
 } from "../ui";
 import { doneSeries } from "../lib/tasks";
 import { FocusSetsScreen, AppSidebar, TaskDetailModal } from "../ui";
+import { FocusMode } from "../ui/FocusMode";
+import { BrainDumpModal } from "../ui/BrainDumpModal";
 
 // Richer active set so the proposed focus sets fill out (the focus route only).
 const hrsAgoG = (h) => new Date(Date.now() - h * 3.6e6).toISOString();
@@ -75,6 +77,8 @@ export function Gallery() {
   if (_view === "focus") return <FocusSetsScreen tasks={focusMock} session={mockSession} onStart={noop} onExit={noop} />;
   if (_view === "shell") return <ShellPreview />;
   if (_view === "detail") return <TaskDetailModal task={mockTasks[0]} weights={undefined} inSession={false} onClose={noop} onEdit={noop} onMarkDone={noop} onDelete={noop} onSchedule={noop} onAddToSession={noop} onFocusNow={noop} />;
+  if (_view === "session2") return <FocusMode session={mockSession} tasks={focusMock.filter(t => !t.done).slice(0, 3)} onMarkDone={noop} onExit={noop} />;
+  if (_view === "braindump") return <BrainDumpModal onClose={noop} onTasksAdded={noop} weights={undefined} />;
   const active = mockTasks.filter(t => !t.done);
   const done = mockTasks.filter(t => t.done);
   return (
