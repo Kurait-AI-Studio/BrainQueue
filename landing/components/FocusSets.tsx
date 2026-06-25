@@ -48,7 +48,7 @@ export function FocusSets() {
           and the tasks you are most likely to avoid.
         </p>
         <p className="mt-3 text-pretty leading-relaxed text-ink/80">
-          Every focus set becomes more personal over time — shaped by what you choose, finish,
+          Every focus set becomes more personal over time, shaped by what you choose, finish,
           postpone, and care about.
         </p>
       </Reveal>

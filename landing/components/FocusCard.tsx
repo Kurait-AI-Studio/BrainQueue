@@ -23,7 +23,7 @@ export function FocusCard({ className = "" }: { className?: string }) {
             Reply to nephrologist email
           </h3>
           <p className="mt-1 text-[0.8rem] leading-relaxed text-muted">
-            Short and factual — confirm your next appointment.
+            Short and factual. Confirm your next appointment.
           </p>
         </div>
       </div>

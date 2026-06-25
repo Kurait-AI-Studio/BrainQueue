@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform, useReducedMotion } from "motion/react";
 import { ThoughtCloud } from "./ThoughtCloud";
 import { FocusCard } from "./FocusCard";
-import { CtaPrimary, CtaGhost, Eyebrow, Section } from "./ui/primitives";
+import { CtaPrimary, CtaGhost, Section } from "./ui/primitives";
 import { ctaPrimary } from "@/config/site";
 
 export function Hero() {
@@ -22,20 +22,18 @@ export function Hero() {
 
   return (
     <section id="top" ref={ref} className="relative h-[200vh]">
-      <div className="sticky top-0 flex min-h-screen items-center overflow-hidden">
-        <Section className="grid w-full grid-cols-1 items-center gap-12 pt-28 pb-16 lg:grid-cols-[1.04fr_1fr] lg:gap-8 lg:pt-0 lg:pb-0">
-          {/* Copy — always legible, sits above the dots */}
+      <div className="sticky top-0 flex min-h-[100dvh] items-center overflow-hidden">
+        <Section className="grid w-full grid-cols-1 items-center gap-12 pt-24 pb-16 lg:grid-cols-[1.04fr_1fr] lg:gap-8 lg:pt-0 lg:pb-0">
+          {/* Copy: always legible, sits above the dots */}
           <div className="relative z-20 max-w-xl">
-            <Eyebrow>For busy minds</Eyebrow>
-
-            <h1 className="mt-5 font-display text-[2.6rem] font-medium leading-[1.04] tracking-[-0.02em] text-ink sm:text-5xl md:text-6xl">
+            <h1 className="font-display text-[2.6rem] font-medium leading-[1.04] tracking-[-0.02em] text-ink sm:text-5xl md:text-6xl">
               Your brain is for <span className="text-accent">thinking</span>.
               <span className="block text-ink/65">Not for remembering everything.</span>
             </h1>
 
             <p className="mt-6 max-w-md text-pretty text-base leading-relaxed text-muted sm:text-lg">
-              Capture every thought, idea, reminder and unfinished task in its rawest form.
-              BrainQueue turns the mental mess into clarity — and gives you one realistic next step.
+              Capture every thought in its rawest form. BrainQueue makes the mental mess
+              clear, then hands you one realistic next step.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -48,7 +46,7 @@ export function Hero() {
             </p>
           </div>
 
-          {/* Stage — the scroll-driven thought cloud + the resolved focus card */}
+          {/* Stage: the scroll-driven thought cloud + the resolved focus card */}
           <div className="relative h-[62vh] min-h-[440px] w-full lg:h-[82vh]">
             <ThoughtCloud progress={scrollYProgress} />
 
@@ -64,11 +62,6 @@ export function Hero() {
             </motion.div>
           </div>
         </Section>
-      </div>
-
-      {/* Soft scroll hint */}
-      <div className="pointer-events-none absolute bottom-6 left-1/2 z-20 -translate-x-1/2">
-        <span className="text-[0.7rem] uppercase tracking-[0.25em] text-faint">Scroll</span>
       </div>
     </section>
   );

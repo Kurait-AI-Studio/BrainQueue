@@ -1,5 +1,5 @@
 import { Reveal } from "./ui/Reveal";
-import { Section, Heading, Eyebrow } from "./ui/primitives";
+import { Section, Heading } from "./ui/primitives";
 
 const REWARDS = [
   { xp: "+50 XP", label: "task done" },
@@ -12,8 +12,7 @@ export function XPProgress() {
     <Section className="py-24 sm:py-28">
       <div className="grid items-center gap-12 lg:grid-cols-2">
         <Reveal>
-          <Eyebrow>Progress</Eyebrow>
-          <Heading className="mt-5">Progress should feel visible.</Heading>
+          <Heading>Progress should feel visible.</Heading>
           <p className="mt-5 text-pretty leading-relaxed text-muted">
             BrainQueue turns completion into visible momentum. Earn XP for doing tasks, finishing
             focus sets, and returning to the things you usually avoid.

@@ -1,5 +1,5 @@
 import { Reveal } from "./ui/Reveal";
-import { Section, Heading, Eyebrow, Chip } from "./ui/primitives";
+import { Section, Heading, Chip } from "./ui/primitives";
 
 const CARDS = [
   {
@@ -24,9 +24,8 @@ export function AvoidedTasks() {
   return (
     <Section className="py-24 sm:py-28">
       <Reveal className="max-w-2xl">
-        <Eyebrow>Adaptive support</Eyebrow>
-        <Heading className="mt-5">
-          The tasks you avoid need a better moment — not more guilt.
+        <Heading>
+          The tasks you avoid need a better moment, not more guilt.
         </Heading>
         <p className="mt-5 text-pretty leading-relaxed text-muted">
           BrainQueue notices which tasks you keep postponing and helps make them easier to approach.

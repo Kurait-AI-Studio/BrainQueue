@@ -132,7 +132,7 @@ function FocusVisual() {
       <div className="absolute inset-x-0 top-0 mx-auto h-32 w-32 -translate-y-1/2 rounded-full bg-accent/10 blur-3xl" />
       <span className="relative text-[0.7rem] uppercase tracking-[0.18em] text-faint">Task 1 of 3</span>
       <h4 className="relative mt-3 font-display text-2xl font-medium text-ink">Renew insurance</h4>
-      <p className="relative mt-2 text-sm text-muted">Find the policy number — that is the only step right now.</p>
+      <p className="relative mt-2 text-sm text-muted">Find the policy number. That is the only step right now.</p>
       <div className="relative mt-4 flex items-center justify-center gap-2">
         <Chip>12:00</Chip>
         <Chip>Low energy</Chip>

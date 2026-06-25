@@ -1,5 +1,5 @@
 import { Reveal } from "./ui/Reveal";
-import { Section, Heading, Lede, Eyebrow } from "./ui/primitives";
+import { Section, Heading, Lede } from "./ui/primitives";
 
 const CARDS = [
   {
@@ -12,7 +12,7 @@ const CARDS = [
   },
   {
     title: "Invisible workload",
-    body: "Remembering what needs to be done is work — even before you begin doing it.",
+    body: "Remembering what needs to be done is work, even before you begin doing it.",
   },
   {
     title: "Guilt-driven productivity",
@@ -24,8 +24,7 @@ export function Recognition() {
   return (
     <Section className="py-24 sm:py-28">
       <Reveal className="max-w-2xl">
-        <Eyebrow>Sound familiar?</Eyebrow>
-        <Heading className="mt-5">
+        <Heading>
           When your brain is busy remembering, it has less room to think.
         </Heading>
         <Lede className="mt-5">

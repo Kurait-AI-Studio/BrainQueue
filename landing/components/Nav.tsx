@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMotionValueEvent, useScroll } from "motion/react";
 import { Logo } from "./Logo";
 import { site } from "@/config/site";
 
@@ -12,13 +13,9 @@ const LINKS = [
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  // Motion's scrollY (rAF-batched) instead of a raw scroll listener.
+  const { scrollY } = useScroll();
+  useMotionValueEvent(scrollY, "change", (y) => setScrolled(y > 12));
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">

@@ -21,8 +21,7 @@ export function Section({
 // ── Typographic helpers ──────────────────────────────────────────────────────
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-accent/90">
-      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+    <span className="inline-flex items-center text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-accent/90">
       {children}
     </span>
   );
