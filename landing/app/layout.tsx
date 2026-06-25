@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
+import { Libre_Caslon_Display, Plus_Jakarta_Sans } from "next/font/google";
 import { site } from "@/config/site";
 import "./globals.css";
 
-const fraunces = Fraunces({
+// Editorial display serif (single 400 weight — small payload; weight-synthesis is
+// disabled in globals.css so headings render at the true 400, never faux-bold).
+const displaySerif = Libre_Caslon_Display({
   subsets: ["latin"],
-  variable: "--font-fraunces",
+  weight: "400",
+  variable: "--font-serif",
   display: "swap",
-  axes: ["opsz"],
 });
 
 const jakarta = Plus_Jakarta_Sans({
@@ -77,8 +79,10 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${jakarta.variable}`}>
+    <html lang="en" className={`${displaySerif.variable} ${jakarta.variable}`}>
       <body className="page-aura page-grain antialiased">
+        {/* warm up the app origin so the sign-in click is instant */}
+        <link rel="preconnect" href={site.appUrl} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

@@ -19,7 +19,7 @@
   --color-health: #fb9fc4;
 
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-display: var(--font-serif), ui-serif, Georgia, "Times New Roman", serif;
 
   --radius-card: 24px;
 }
@@ -49,6 +49,8 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+  /* Libre Caslon Display ships only weight 400 — never fake a heavier cut. */
+  font-synthesis-weight: none;
 }
 
 /* Ambient page glows — fixed, behind everything, very low intensity. */
