@@ -7,7 +7,7 @@
   --color-bg-2: #0b0e15;
   --color-ink: #f5f7fa;
   --color-muted: #9aa3b2;
-  --color-faint: #5b6472;
+  --color-faint: #828c9d; /* ~4.9:1 on #0a0a0d — AA for small text, still de-emphasized */
   --color-line: rgba(255, 255, 255, 0.08);
 
   --color-accent: #bef24a;
