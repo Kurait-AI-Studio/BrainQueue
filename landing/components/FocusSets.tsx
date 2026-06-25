@@ -8,17 +8,11 @@ type SetCard = {
   meta: { time: string; energy: string; xp: string };
   bestFor: string;
   tasks: string[];
+  featured?: boolean;
 };
 
+// Balanced Flow sits in the middle, featured as the sensible default.
 const SETS: SetCard[] = [
-  {
-    name: "Balanced Flow",
-    accent: "#bef24a",
-    blurb: "A mix of important, satisfying, and realistic tasks.",
-    meta: { time: "45 min", energy: "Medium energy", xp: "+230 XP" },
-    bestFor: "I want progress without burning out.",
-    tasks: ["Reply to Sarah about Friday", "Draft client proposal outline", "Book dentist appointment"],
-  },
   {
     name: "Quick Wins",
     accent: "#5eead4",
@@ -26,6 +20,15 @@ const SETS: SetCard[] = [
     meta: { time: "25 min", energy: "Low energy", xp: "+180 XP" },
     bestFor: "I cannot start something big right now.",
     tasks: ["Buy batteries", "Confirm dinner reservation", "Find insurance number"],
+  },
+  {
+    name: "Balanced Flow",
+    accent: "#bef24a",
+    blurb: "A mix of important, satisfying, and realistic tasks.",
+    meta: { time: "45 min", energy: "Medium energy", xp: "+230 XP" },
+    bestFor: "I want progress without burning out.",
+    tasks: ["Reply to Sarah about Friday", "Draft client proposal outline", "Book dentist appointment"],
+    featured: true,
   },
   {
     name: "Deep Focus",
@@ -53,49 +56,61 @@ export function FocusSets() {
         </p>
       </Reveal>
 
-      <div className="mt-14 grid gap-5 lg:grid-cols-3">
+      <div className="mt-14 grid items-center gap-5 lg:grid-cols-3">
         {SETS.map((s, i) => (
           <Reveal key={s.name} delay={i * 0.08}>
             <article
-              className="group glass flex h-full flex-col rounded-[var(--radius-card)] p-6 transition-colors duration-300 hover:border-white/20"
-              style={{ boxShadow: `inset 0 1px 0 ${s.accent}10` }}
+              className={`relative flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] ${
+                s.featured
+                  ? "border border-accent/45 bg-white/[0.04] shadow-[0_30px_70px_-30px_rgba(190,242,74,0.35)] lg:-translate-y-3 lg:pb-2"
+                  : "glass"
+              }`}
             >
-              <div className="flex items-center justify-between">
-                <h3 className="font-display text-xl font-medium text-ink">{s.name}</h3>
-                <span
-                  className="rounded-full px-2.5 py-1 text-xs font-bold"
-                  style={{ background: `${s.accent}1f`, color: s.accent }}
+              {/* thin category accent + featured tag */}
+              <div className="h-[3px] w-full" style={{ background: s.accent }} />
+              <div className="flex flex-1 flex-col p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-xl font-medium text-ink">{s.name}</h3>
+                  {s.featured ? (
+                    <span className="rounded-full bg-accent px-2.5 py-1 text-[0.7rem] font-bold text-[#0a0a0d]">
+                      Start here
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-faint">{s.meta.xp}</span>
+                  )}
+                </div>
+
+                <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">{s.blurb}</p>
+
+                <div className="mt-4 flex flex-wrap gap-2 text-xs text-faint">
+                  <span className="rounded-md border border-line px-2 py-1">{s.meta.time}</span>
+                  <span className="rounded-md border border-line px-2 py-1">{s.meta.energy}</span>
+                  {s.featured && <span className="rounded-md border border-line px-2 py-1">{s.meta.xp}</span>}
+                </div>
+
+                <ul className="mt-5 divide-y divide-line border-y border-line">
+                  {s.tasks.map((t) => (
+                    <li key={t} className="py-2.5 text-sm text-ink/85">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+
+                <p className="mt-5 text-xs text-muted">
+                  <span className="text-faint">Best for:</span> “{s.bestFor}”
+                </p>
+
+                <button
+                  type="button"
+                  className={`mt-5 w-full rounded-xl py-2.5 text-sm font-semibold transition-transform duration-200 hover:scale-[1.01] motion-reduce:hover:scale-100 ${
+                    s.featured
+                      ? "bg-accent text-[#0a0a0d]"
+                      : "border border-accent/45 bg-accent-soft text-accent"
+                  }`}
                 >
-                  {s.meta.xp}
-                </span>
+                  Choose this set
+                </button>
               </div>
-              <p className="mt-2 text-pretty text-sm leading-relaxed text-muted">{s.blurb}</p>
-
-              <div className="mt-4 flex flex-wrap gap-2 text-xs text-faint">
-                <span className="rounded-md border border-line px-2 py-1">{s.meta.time}</span>
-                <span className="rounded-md border border-line px-2 py-1">{s.meta.energy}</span>
-              </div>
-
-              <ul className="mt-5 space-y-2">
-                {s.tasks.map((t) => (
-                  <li key={t} className="flex items-center gap-2.5 text-sm text-ink/85">
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: s.accent }} />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-
-              <p className="mt-5 rounded-lg border border-line bg-white/[0.02] px-3 py-2 text-xs text-muted">
-                <span className="text-faint">Best for:</span> “{s.bestFor}”
-              </p>
-
-              <button
-                type="button"
-                className="mt-5 w-full rounded-xl border py-2.5 text-sm font-semibold transition-colors duration-200"
-                style={{ borderColor: `${s.accent}55`, color: s.accent, background: `${s.accent}12` }}
-              >
-                Choose this set
-              </button>
             </article>
           </Reveal>
         ))}

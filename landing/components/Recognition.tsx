@@ -1,7 +1,7 @@
 import { Reveal } from "./ui/Reveal";
 import { Section, Heading, Lede } from "./ui/primitives";
 
-const CARDS = [
+const PAINS = [
   {
     title: "Mental clutter",
     body: "Thoughts keep resurfacing because your brain is trying not to lose them.",
@@ -23,26 +23,31 @@ const CARDS = [
 export function Recognition() {
   return (
     <Section className="py-24 sm:py-28">
-      <Reveal className="max-w-2xl">
-        <Heading>
-          When your brain is busy remembering, it has less room to think.
-        </Heading>
-        <Lede className="mt-5">
-          Open loops take up space: messages to answer, appointments to book, ideas not to lose,
-          tasks you keep postponing. When they all stay in your head, they do not stay quiet.
-        </Lede>
-      </Reveal>
+      <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:gap-16">
+        <Reveal>
+          <Heading>When your brain is busy remembering, it has less room to think.</Heading>
+          <Lede className="mt-5">
+            Open loops take up space: messages to answer, appointments to book, ideas not to lose,
+            tasks you keep postponing. When they all stay in your head, they do not stay quiet.
+          </Lede>
+        </Reveal>
 
-      <ul className="mt-14 grid gap-4 sm:grid-cols-2">
-        {CARDS.map((c, i) => (
-          <Reveal as="li" key={c.title} delay={i * 0.06}>
-            <div className="glass h-full rounded-[var(--radius-card)] p-6">
-              <h3 className="text-lg font-semibold text-ink">{c.title}</h3>
-              <p className="mt-2 text-pretty leading-relaxed text-muted">{c.body}</p>
-            </div>
-          </Reveal>
-        ))}
-      </ul>
+        {/* editorial hairline list, no cards */}
+        <ul>
+          {PAINS.map((p, i) => (
+            <Reveal as="li" key={p.title} delay={i * 0.06}>
+              <div
+                className={`border-t border-line py-6 sm:py-7 ${
+                  i === 0 ? "lg:border-t-0 lg:pt-1" : ""
+                }`}
+              >
+                <h3 className="text-xl font-semibold text-ink">{p.title}</h3>
+                <p className="mt-2 max-w-md text-pretty leading-relaxed text-muted">{p.body}</p>
+              </div>
+            </Reveal>
+          ))}
+        </ul>
+      </div>
     </Section>
   );
 }

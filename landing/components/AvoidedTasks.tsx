@@ -64,12 +64,13 @@ export function AvoidedTasks() {
         </div>
       </Reveal>
 
-      <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="mt-12 grid gap-x-8 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
         {CARDS.map((c, i) => (
           <Reveal as="li" key={c.title} delay={i * 0.06}>
-            <div className="glass h-full rounded-[var(--radius-card)] p-5">
-              <h4 className="font-semibold leading-snug text-ink">{c.title}</h4>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{c.body}</p>
+            <div className="border-t border-line pt-4">
+              <span className="font-display text-xl text-accent">{`0${i + 1}`}</span>
+              <h4 className="mt-2 font-semibold leading-snug text-ink">{c.title}</h4>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{c.body}</p>
             </div>
           </Reveal>
         ))}
