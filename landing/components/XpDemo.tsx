@@ -11,6 +11,8 @@ import {
 } from "motion/react";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// deterministic thousands separator (toLocaleString can differ server vs client -> hydration error)
+const fmt = (v: number) => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const START_PCT = 88; // level 6, almost full — one task tips it over
 const CARRY_PCT = 16; // where level 7 starts after the level-up
 
@@ -28,7 +30,7 @@ export function XpDemo() {
   const [level, setLevel] = useState(6);
   const [done, setDone] = useState(false);
   const xp = useMotionValue(1180);
-  const xpText = useTransform(xp, (v) => Math.round(v).toLocaleString());
+  const xpText = useTransform(xp, fmt);
 
   useEffect(() => {
     if (reduced) {
