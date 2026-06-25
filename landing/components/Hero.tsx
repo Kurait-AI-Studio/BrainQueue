@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { motion, useScroll, useTransform, useReducedMotion } from "motion/react";
 import { ThoughtCloud } from "./ThoughtCloud";
-import { FocusCard } from "./FocusCard";
+import { Shot } from "./Shot";
 import { CtaPrimary, CtaGhost, Section } from "./ui/primitives";
 import { ctaPrimary } from "@/config/site";
 
@@ -51,14 +51,21 @@ export function Hero() {
             <ThoughtCloud progress={scrollYProgress} />
 
             <motion.div
-              className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
+              className="absolute left-1/2 top-1/2 z-10 w-[min(34rem,94%)] -translate-x-1/2 -translate-y-1/2"
               style={
                 reduced
                   ? undefined
                   : { opacity: cardOpacity, scale: cardScale, y: cardY }
               }
             >
-              <FocusCard />
+              <Shot
+                src="/screens/focus-sets.png"
+                alt="BrainQueue proposing three focus sets built from your tasks"
+                width={2640}
+                height={1760}
+                priority
+                sizes="(max-width: 1024px) 90vw, 540px"
+              />
             </motion.div>
           </div>
         </Section>

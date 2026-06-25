@@ -1,4 +1,5 @@
 import { Reveal } from "./ui/Reveal";
+import { Shot } from "./Shot";
 import { Section, Heading, Eyebrow, Chip } from "./ui/primitives";
 
 export function HowItWorks() {
@@ -14,14 +15,28 @@ export function HowItWorks() {
           n={1}
           title="Capture it raw"
           body="Write exactly as your thoughts arrive. Fragments, reminders, ideas, worries, errands, voice-note-style sentences. No formatting required."
-          visual={<CaptureVisual />}
+          visual={
+            <Shot
+              src="/screens/brain-dump.png"
+              alt="Pasting raw, unstructured notes into the BrainQueue brain dump"
+              width={1468}
+              height={972}
+            />
+          }
         />
         <Step
           n={2}
           title="BrainQueue creates clarity"
           body="AI separates the noise into real tasks, understands context, and scores what matters based on urgency, importance, duration, effort, energy, pleasure, and your current situation."
           footnote="You do not have to decide everything at once."
-          visual={<ScoreVisual />}
+          visual={
+            <Shot
+              src="/screens/task-detail.png"
+              alt="A task scored across urgency, importance, effort, energy and pleasure"
+              width={1488}
+              height={1230}
+            />
+          }
         />
         <Step
           n={3}
@@ -77,52 +92,6 @@ function Step({
 
       <div className="md:order-last">{visual}</div>
     </Reveal>
-  );
-}
-
-function CaptureVisual() {
-  return (
-    <div className="glass-strong rounded-[var(--radius-card)] p-5">
-      <div className="mb-3 flex items-center gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-white/15" />
-        <span className="h-2.5 w-2.5 rounded-full bg-white/15" />
-        <span className="h-2.5 w-2.5 rounded-full bg-accent/60" />
-        <span className="ml-2 text-[0.7rem] uppercase tracking-[0.16em] text-faint">Brain dump</span>
-      </div>
-      <p className="text-pretty font-mono text-[0.92rem] leading-relaxed text-ink/85">
-        Call the pharmacy, idea for client proposal, find blood pressure prescription, ask Sarah
-        about Friday, renew insurance, maybe research that course…
-        <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-accent" />
-      </p>
-    </div>
-  );
-}
-
-function ScoreVisual() {
-  const rows: [string, string][] = [
-    ["Urgency", "High"],
-    ["Importance", "High"],
-    ["Effort", "5 min"],
-    ["Energy", "Low"],
-    ["Pleasure", "Medium"],
-  ];
-  return (
-    <div className="glass-strong rounded-[var(--radius-card)] p-5">
-      <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-ink">Find blood pressure prescription</h4>
-        <span className="rounded-md border border-accent/30 bg-accent-soft px-2 py-1 text-xs font-bold text-accent">
-          Score 92
-        </span>
-      </div>
-      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2.5">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex items-center justify-between border-b border-line pb-2">
-            <dt className="text-sm text-muted">{k}</dt>
-            <dd className="text-sm font-medium text-ink">{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
   );
 }
 
