@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* ── Design tokens (Tailwind v4 CSS-first theme) ─────────────────────────────
+   Exposed as utilities: bg-bg, text-ink, text-muted, text-accent, font-display… */
+@theme {
+  --color-bg: #0a0a0d;
+  --color-bg-2: #0b0e15;
+  --color-ink: #f5f7fa;
+  --color-muted: #9aa3b2;
+  --color-faint: #5b6472;
+  --color-line: rgba(255, 255, 255, 0.08);
+
+  --color-accent: #bef24a;
+  --color-accent-soft: rgba(190, 242, 74, 0.14);
+
+  --color-urgent: #ff9b54;
+  --color-deep: #a78bfa;
+  --color-admin: #5eead4;
+  --color-health: #fb9fc4;
+
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+
+  --radius-card: 24px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* Ambient page glows — fixed, behind everything, very low intensity. */
+.page-aura::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60rem 60rem at 78% -8%, rgba(190, 242, 74, 0.07), transparent 60%),
+    radial-gradient(50rem 50rem at 8% 18%, rgba(167, 139, 250, 0.06), transparent 60%),
+    radial-gradient(46rem 46rem at 50% 120%, rgba(94, 234, 212, 0.05), transparent 60%);
+}
+
+/* Subtle grain to kill banding on the dark canvas. */
+.page-grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Glass card surface used across sections. */
+.glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(10px);
+}
+
+.glass-strong {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+/* Gentle lime pulse for the AI sorting node. */
+@keyframes node-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+.node-pulse {
+  animation: node-pulse 4.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .node-pulse { animation: none; }
+}
+
+/* Faint ambient drift for foreground dots (1–3px). */
+@keyframes dot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+.dot-float {
+  animation: dot-float 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot-float { animation: none; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
