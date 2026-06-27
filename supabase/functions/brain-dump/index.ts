@@ -47,7 +47,7 @@ const ALLOWED_MODELS: Record<string, Set<string>> = {
 // back (so their browser blocks the response) instead of a permissive "*".
 const ALLOWED_ORIGINS = (
   Deno.env.get("ALLOWED_ORIGINS") ??
-  "https://app.brainqueue.app,https://brainqueue.app,http://localhost:5173,http://localhost:4173"
+  "https://brainqueue.kuraitstudio.ai,https://app.brainqueue.app,http://localhost:5173,http://localhost:4173"
 ).split(",").map((s) => s.trim()).filter(Boolean);
 
 function corsHeaders(origin: string | null) {
