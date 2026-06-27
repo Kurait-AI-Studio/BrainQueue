@@ -33,6 +33,7 @@ const FocusSetsScreen = lazy(() => import("./ui/FocusSetsScreen").then(m => ({ d
 
 import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, nextOccurrence, withClassification, taskTier } from "./lib/tasks";
 import { DEFAULT_REVIEW_TONE } from "./lib/weeklyReview";
+import { humanizeError } from "./lib/errors";
 
 // localStorage cache is namespaced per user, so signing in as someone else on the
 // same browser never surfaces the previous account's tasks or API key.
@@ -323,7 +324,7 @@ export function MainApp({ session }) {
     sessionStorage.removeItem(PENDING_CAL_KEY);
     insertViaProvider(provider, token, ev)
       .then(() => setToast({ type: "success", msg: `Added to ${CAL_BACKENDS[provider]?.label || "your calendar"} ✓` }))
-      .catch(e => setToast({ type: "error", msg: `Couldn't add to calendar: ${e.message}` }));
+      .catch(e => setToast({ type: "error", msg: `Couldn't add to calendar: ${humanizeError(e, "please try again.")}` }));
     clearAuthParamsFromUrl();
   }, [session.provider_token]);
 

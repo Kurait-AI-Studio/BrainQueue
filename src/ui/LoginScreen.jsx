@@ -5,7 +5,14 @@ import { useState } from "react";
 import { glass, glassStrong } from "./tokens";
 import { useHover } from "./useHover";
 import { MouseGlow } from "./MouseGlow";
+import { Captcha } from "./Captcha";
 import { getSupabase } from "../lib/client";
+import { humanizeError } from "../lib/errors";
+
+// Supabase enforces a captcha token on the OTP endpoint once Attack Protection is on.
+// Set these to the Turnstile (or hCaptcha) values you configured in the dashboard.
+const CAPTCHA_PROVIDER = import.meta.env.VITE_CAPTCHA_PROVIDER || "turnstile";
+const CAPTCHA_SITE_KEY = import.meta.env.VITE_CAPTCHA_SITE_KEY || "";
 
 const OAUTH_PROVIDERS = [
   { id: "google", label: "Continue with Google" },
@@ -18,10 +25,13 @@ async function signInWithProvider(provider) {
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
   if (error) throw error;
 }
-async function signInWithEmail(email) {
+async function signInWithEmail(email, captchaToken) {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not configured.");
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin, captchaToken: captchaToken || undefined },
+  });
   if (error) throw error;
 }
 
@@ -63,20 +73,28 @@ export function LoginScreen() {
   const [busy, setBusy] = useState(null);   // provider id | "email" | null
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaKey, setCaptchaKey] = useState(0); // bump to remount/reset the widget
   const configured = !!getSupabase();
+  const captchaReady = !CAPTCHA_SITE_KEY || !!captchaToken; // no key configured -> no gate
 
   const oauth = async (id) => {
     setBusy(id); setError(null);
     try { await signInWithProvider(id); }
-    catch (e) { setError(e.message); setBusy(null); }
+    catch (e) { setError(humanizeError(e)); setBusy(null); }
     // on success the browser redirects away — no need to clear busy
   };
 
   const magic = async () => {
     if (!email.trim()) return;
+    if (CAPTCHA_SITE_KEY && !captchaToken) { setError("Please complete the captcha first."); return; }
     setBusy("email"); setError(null);
-    try { await signInWithEmail(email.trim()); setSent(true); }
-    catch (e) { setError(e.message); }
+    try { await signInWithEmail(email.trim(), captchaToken); setSent(true); }
+    catch (e) {
+      setError(humanizeError(e));
+      // The token is single-use; reset the widget so the user can retry.
+      setCaptchaToken(null); setCaptchaKey(k => k + 1);
+    }
     setBusy(null);
   };
 
@@ -142,15 +160,24 @@ export function LoginScreen() {
                 outline: "none", width: "100%", boxSizing: "border-box",
               }}
             />
+            {CAPTCHA_SITE_KEY && (
+              <Captcha
+                key={captchaKey}
+                provider={CAPTCHA_PROVIDER}
+                siteKey={CAPTCHA_SITE_KEY}
+                onToken={setCaptchaToken}
+                onError={setError}
+              />
+            )}
             <button
-              onClick={magic} disabled={!!busy || !email.trim()}
+              onClick={magic} disabled={!!busy || !email.trim() || !captchaReady}
               style={{
                 width: "100%", padding: "0.85rem",
                 background: "rgba(232,255,90,0.1)", border: "1px solid rgba(232,255,90,0.4)",
                 borderRadius: "12px", color: "#bef24a",
                 fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.85rem",
-                cursor: busy || !email.trim() ? "not-allowed" : "pointer",
-                opacity: busy || !email.trim() ? 0.5 : 1,
+                cursor: busy || !email.trim() || !captchaReady ? "not-allowed" : "pointer",
+                opacity: busy || !email.trim() || !captchaReady ? 0.5 : 1,
               }}>
               {busy === "email" ? "Sending…" : "Send magic link →"}
             </button>

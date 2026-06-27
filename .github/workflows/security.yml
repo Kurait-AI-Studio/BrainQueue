@@ -1,0 +1,32 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: npm audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [".", "landing"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Resolve a lockfile
+        working-directory: ${{ matrix.dir }}
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Audit production dependencies
+        working-directory: ${{ matrix.dir }}
+        # Fail the build only on high / critical advisories in shipped deps.
+        run: npm audit --omit=dev --audit-level=high

@@ -7,6 +7,7 @@ import { GlassButton } from "./GlassButton";
 import { Dim } from "./misc";
 import { TierBadge } from "./TierBadge";
 import { getSupabase, logEvent, setSurface } from "../lib/client";
+import { humanizeError } from "../lib/errors";
 import { CAT_ACCENT, calcScore } from "../lib/tasks";
 import {
   CATEGORIES, BRAIN_DUMP_MODEL, BRAIN_DUMP_MODELS, BRAIN_DUMP_PROVIDER,
@@ -73,7 +74,12 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
         })
       });
       const rawText = await response.text();
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 300)}`);
+      if (!response.ok) {
+        // Surface the server's clean message (e.g. the daily-cap notice) when present.
+        let msg = `HTTP ${response.status}: ${rawText.slice(0, 300)}`;
+        try { const j = JSON.parse(rawText); if (j?.error) msg = j.error; } catch { /* keep raw */ }
+        throw new Error(msg);
+      }
       const data = JSON.parse(rawText);
       if (data.error) throw new Error(`API: ${data.error.message}`);
       const textBlock = data.content?.find(b => b.type === "text");
@@ -99,7 +105,7 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
       parsedAtRef.current = performance.now();
       setParsed(withPid);
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e, "We couldn't process that dump. Please try again."));
       logEvent("parse_failed", null, { dump_id: dumpId, error: String(e.message).slice(0, 300), latency_ms: Math.round(performance.now() - t0) });
     }
     setLoading(false);
@@ -110,7 +116,12 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
 
   // The v1 → final delta. Every kept-unchanged field is a positive label (principle 7),
   // every edit is a preference pair (principle 1) — log both, fully reconstructable.
-  const logCorrections = () => {
+  // `idMap` (_pid → committed task id) and `finalTasks` (the human-corrected v_final)
+  // make final_committed a self-contained training record: the supervised pair is a
+  // direct read (parse_result.parsed_tasks → final_tasks) instead of an edit replay,
+  // and task_id_map links each model output to the task's downstream outcome
+  // (completed / postponed / deleted), the strongest label of all.
+  const logCorrections = (idMap, finalTasks) => {
     const dumpId = dumpIdRef.current;
     const orig = originalRef.current || [];
     const finalByPid = new Map(parsed.map(t => [t._pid, t]));
@@ -139,18 +150,26 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
     logEvent("final_committed", null, {
       dump_id: dumpId, n_tasks: parsed.length, n_edits: nEdits, n_removed: nRemoved, n_accepted: nAccepted,
       edit_types: editTypes, time_to_commit_ms: Math.round(performance.now() - parsedAtRef.current),
+      final_tasks: finalTasks,   // the committed v_final — the supervised label, read directly (no edit replay)
+      task_id_map: idMap,        // _pid → committed task id: joins this generation to the task's later outcome
     });
   };
 
   const confirmAdd = () => {
-    try { logCorrections(); } catch { /* telemetry must never block the commit */ }
     const now = new Date().toISOString();
-    // Strip the internal _pid before the tasks enter the app/db.
-    onTasksAdded(parsed.map((t, i) => {
-      const task = { ...t, id: Date.now() + i, done: false, addedAt: now, doneAt: null };
-      delete task._pid;
+    const baseId = Date.now();
+    // Assign committed ids up front so corrections can map _pid → id (the join from
+    // "what the model produced" to "what the user did with the task afterwards").
+    const idMap = {};
+    const committed = parsed.map((t, i) => {
+      const id = baseId + i;
+      idMap[t._pid] = id;
+      const task = { ...t, id, done: false, addedAt: now, doneAt: null };
+      delete task._pid;   // strip the internal ref before the task enters the app/db
       return task;
-    }));
+    });
+    try { logCorrections(idMap, committed); } catch { /* telemetry must never block the commit */ }
+    onTasksAdded(committed);
     onClose();
   };
 
