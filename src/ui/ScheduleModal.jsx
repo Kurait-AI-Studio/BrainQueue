@@ -8,6 +8,7 @@ import {
   nextHour, ymd, pad2, calBackendFor, userProvider, buildEvent,
   downloadICS, insertViaProvider, requestCalendarConsent, CalAuthError,
 } from "../lib/calendar";
+import { humanizeError } from "../lib/errors";
 
 const EFFORT_DURATION = { 1: 15, 2: 30, 3: 60, 4: 90, 5: 120 }; // minutes
 const REMINDER_CHOICES = [
@@ -56,9 +57,9 @@ export function ScheduleModal({ task, session, onClose, onResult }) {
       if (e instanceof CalAuthError) {
         // Had a token but it lacked the scope — ask for consent.
         try { await requestCalendarConsent(provider, ev, task.id); return; }
-        catch (e2) { setError(e2.message); }
+        catch (e2) { setError(humanizeError(e2)); }
       } else {
-        setError(e.message);
+        setError(humanizeError(e));
       }
       setBusy(null);
     }

@@ -7,6 +7,7 @@ import { useHover } from "./useHover";
 import { MouseGlow } from "./MouseGlow";
 import { Captcha } from "./Captcha";
 import { getSupabase } from "../lib/client";
+import { humanizeError } from "../lib/errors";
 
 // Supabase enforces a captcha token on the OTP endpoint once Attack Protection is on.
 // Set these to the Turnstile (or hCaptcha) values you configured in the dashboard.
@@ -80,7 +81,7 @@ export function LoginScreen() {
   const oauth = async (id) => {
     setBusy(id); setError(null);
     try { await signInWithProvider(id); }
-    catch (e) { setError(e.message); setBusy(null); }
+    catch (e) { setError(humanizeError(e)); setBusy(null); }
     // on success the browser redirects away — no need to clear busy
   };
 
@@ -90,7 +91,7 @@ export function LoginScreen() {
     setBusy("email"); setError(null);
     try { await signInWithEmail(email.trim(), captchaToken); setSent(true); }
     catch (e) {
-      setError(e.message);
+      setError(humanizeError(e));
       // The token is single-use; reset the widget so the user can retry.
       setCaptchaToken(null); setCaptchaKey(k => k + 1);
     }

@@ -7,6 +7,7 @@ import { GlassButton } from "./GlassButton";
 import { Dim } from "./misc";
 import { TierBadge } from "./TierBadge";
 import { getSupabase, logEvent, setSurface } from "../lib/client";
+import { humanizeError } from "../lib/errors";
 import { CAT_ACCENT, calcScore } from "../lib/tasks";
 import {
   CATEGORIES, BRAIN_DUMP_MODEL, BRAIN_DUMP_MODELS, BRAIN_DUMP_PROVIDER,
@@ -104,7 +105,7 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
       parsedAtRef.current = performance.now();
       setParsed(withPid);
     } catch (e) {
-      setError(e.message);
+      setError(humanizeError(e, "We couldn't process that dump. Please try again."));
       logEvent("parse_failed", null, { dump_id: dumpId, error: String(e.message).slice(0, 300), latency_ms: Math.round(performance.now() - t0) });
     }
     setLoading(false);
