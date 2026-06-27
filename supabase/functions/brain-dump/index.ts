@@ -33,6 +33,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const MAX_TOKENS_CAP = 8000; // hard ceiling, ignores oversized client asks
+const DAILY_DUMP_CAP = Number(Deno.env.get("DAILY_DUMP_CAP")) || 25; // per-user/day; abuse + free-tier guard
 
 // Per-provider allowlist — no arbitrary model billing, whatever the client sends.
 const ALLOWED_MODELS: Record<string, Set<string>> = {
@@ -73,6 +74,18 @@ Deno.serve(async (req) => {
   if (typeof dump !== "string" || !dump.trim()) return json({ error: "Missing dump text" }, 400);
   if (!ALLOWED_MODELS[provider]) return json({ error: `Provider not allowed: ${provider}` }, 400);
   if (!ALLOWED_MODELS[provider].has(model)) return json({ error: `Model not allowed for ${provider}: ${model}` }, 400);
+
+  // 2b. Reserve one Brain Dump against the user's daily cap BEFORE spending on the model.
+  //     The count is server-authoritative (a SECURITY DEFINER function keyed on auth.uid()),
+  //     so a client can't bypass it by withholding its own telemetry. If the function isn't
+  //     deployed yet (migration 0009 not applied), fail OPEN so the app keeps working — the
+  //     cap simply isn't enforced until the migration lands.
+  const { data: quota, error: qErr } = await supa.rpc("bump_brain_dump_quota", { p_limit: DAILY_DUMP_CAP });
+  if (qErr) {
+    console.warn("brain-dump quota check failed open:", qErr.message);
+  } else if (quota && quota.allowed === false) {
+    return json({ error: `Daily Brain Dump limit reached (${quota.limit} per day). It resets tomorrow.`, code: "daily_limit", quota }, 429);
+  }
 
   // 3. Route to the provider with the SERVER-side key. The browser never sees it.
   try {

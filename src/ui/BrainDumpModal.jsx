@@ -73,7 +73,12 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
         })
       });
       const rawText = await response.text();
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${rawText.slice(0, 300)}`);
+      if (!response.ok) {
+        // Surface the server's clean message (e.g. the daily-cap notice) when present.
+        let msg = `HTTP ${response.status}: ${rawText.slice(0, 300)}`;
+        try { const j = JSON.parse(rawText); if (j?.error) msg = j.error; } catch { /* keep raw */ }
+        throw new Error(msg);
+      }
       const data = JSON.parse(rawText);
       if (data.error) throw new Error(`API: ${data.error.message}`);
       const textBlock = data.content?.find(b => b.type === "text");
