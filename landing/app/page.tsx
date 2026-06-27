@@ -8,6 +8,7 @@ import { FocusSets } from "@/components/FocusSets";
 import { AvoidedTasks } from "@/components/AvoidedTasks";
 import { Personalization } from "@/components/Personalization";
 import { XPProgress } from "@/components/XPProgress";
+import { Pricing } from "@/components/Pricing";
 import { FinalCTA } from "@/components/FinalCTA";
 import { Footer } from "@/components/Footer";
 
@@ -25,6 +26,7 @@ export default function Home() {
         <AvoidedTasks />
         <Personalization />
         <XPProgress />
+        <Pricing />
         <FinalCTA />
       </main>
       <Footer />
