@@ -41,15 +41,30 @@ const ALLOWED_MODELS: Record<string, Set<string>> = {
   openai: new Set(["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"]),
 };
 
-const cors = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const json = (obj: unknown, status = 200) =>
-  new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json" } });
+// Allowlist of browser origins permitted to call this function. Overridable via the
+// ALLOWED_ORIGINS secret (comma-separated) so the real deploy domain can be set without
+// a code change. Requests from an unknown origin get the first allowed origin echoed
+// back (so their browser blocks the response) instead of a permissive "*".
+const ALLOWED_ORIGINS = (
+  Deno.env.get("ALLOWED_ORIGINS") ??
+  "https://app.brainqueue.app,https://brainqueue.app,http://localhost:5173,http://localhost:4173"
+).split(",").map((s) => s.trim()).filter(Boolean);
+
+function corsHeaders(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req.headers.get("Origin"));
+  const json = (obj: unknown, status = 200) =>
+    new Response(JSON.stringify(obj), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
