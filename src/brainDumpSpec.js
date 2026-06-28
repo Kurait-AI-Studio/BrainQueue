@@ -23,7 +23,7 @@ export const BRAIN_DUMP_MODELS = {
 // Run `node eval/run-eval.mjs` to compare candidates, then set the winner here.
 // Switching providers is a one-line change: point this at any key of
 // BRAIN_DUMP_MODELS and the provider/pricing/route follow automatically.
-export const BRAIN_DUMP_MODEL = "claude-sonnet-4-6";
+export const BRAIN_DUMP_MODEL = "gpt-4.1-mini";
 export const BRAIN_DUMP_PROVIDER = BRAIN_DUMP_MODELS[BRAIN_DUMP_MODEL]?.provider ?? "anthropic";
 
 // Version stamp for the prompt + schema below. Bump whenever BRAIN_DUMP_SYSTEM or
