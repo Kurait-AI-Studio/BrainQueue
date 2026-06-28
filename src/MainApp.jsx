@@ -34,6 +34,7 @@ const FocusSetsScreen = lazy(() => import("./ui/FocusSetsScreen").then(m => ({ d
 
 
 import { CAT_ACCENT, DEFAULT_WEIGHTS, calcScore, taskCats, allCategories, URGENCY_TARGET_HRS, taskXP, nextOccurrence, withClassification, taskTier } from "./lib/tasks";
+import { adaptWeights } from "./lib/adapt";
 import { DEFAULT_REVIEW_TONE } from "./lib/weeklyReview";
 import { humanizeError } from "./lib/errors";
 
@@ -211,6 +212,13 @@ export function MainApp({ session }) {
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE } = state;
+  // Level 0 adaptation: when Memory is on, nudge the scoring weights toward what this user
+  // actually completes. `weights` stays the user's explicit base (Settings); `effWeights`
+  // is what ranking/scoring use. Off = generic, so the Memory promise stays honest.
+  const { weights: effWeights, tuned: weightsTuned } = useMemo(
+    () => (consentState === "full" ? adaptWeights(tasks, weights) : { weights, tuned: false }),
+    [consentState, tasks, weights]
+  );
   const tasksRef = useRef(tasks); tasksRef.current = tasks; // latest tasks for set-clear detection
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
@@ -486,10 +494,10 @@ export function MainApp({ session }) {
 
   const active = tasks.filter(t => !t.done);
   const done = tasks.filter(t => t.done).sort((a, b) => new Date(b.doneAt) - new Date(a.doneAt));
-  const sorted = [...active].sort((a, b) => calcScore(b, weights) - calcScore(a, weights));
+  const sorted = [...active].sort((a, b) => calcScore(b, effWeights) - calcScore(a, effWeights));
 
   const viewTasks = view === 4 ? done : [
-    sorted.filter(t => calcScore(t, weights) >= 60 || t.urgency >= 4),
+    sorted.filter(t => calcScore(t, effWeights) >= 60 || t.urgency >= 4),
     sorted.filter(t => t.effort <= 2 && t.importance >= 3),
     sorted.filter(t => t.energy <= 2),
     filterCat === "All" ? sorted : sorted.filter(t => taskCats(t).includes(filterCat)),
@@ -643,6 +651,7 @@ export function MainApp({ session }) {
           <div style={{ maxWidth: "720px", margin: "0 auto" }}>
             <p style={{ fontSize: "0.7rem", color: "#3a3a3a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", letterSpacing: "0.06em" }}>
               <span style={{ color: "#6b6b76", fontWeight: 700 }}>{viewTasks?.length} {viewTasks?.length === 1 ? "TASK" : "TASKS"}</span> · {viewDescriptions[view].toUpperCase()}
+              {weightsTuned && <span style={{ color: "#bef24a", fontWeight: 700, marginLeft: 8 }} title="Ordering is adapted to the tasks you actually complete">· TUNED TO YOU</span>}
             </p>
           </div>
         </div>
@@ -656,7 +665,7 @@ export function MainApp({ session }) {
                 <div key={t.id} className="task-enter" style={{ animationDelay: `${i * 0.04}s` }}>
                   {t.done
                     ? <DoneCard task={t} onDelete={deleteTask} onRestore={restore} />
-                    : <TaskCard task={t} onOpen={setDetailTask} onAddToSession={addToSession} inSession={sessionDraft.includes(t.id)} onEdit={setEditTask} onMarkDone={markDone} onDelete={deleteTask} onSchedule={setScheduleTask} weights={weights} />
+                    : <TaskCard task={t} onOpen={setDetailTask} onAddToSession={addToSession} inSession={sessionDraft.includes(t.id)} onEdit={setEditTask} onMarkDone={markDone} onDelete={deleteTask} onSchedule={setScheduleTask} weights={effWeights} />
                   }
                 </div>
               ))}
@@ -666,13 +675,13 @@ export function MainApp({ session }) {
       </div>
 
       {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
-      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={weights} />}
+      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={effWeights} />}
       {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
       {showAnalytics && <Suspense fallback={null}><AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} /></Suspense>}
-      {showReview && <WeeklyReviewModal tasks={tasks} weights={weights} tone={reviewTone} onClose={() => setShowReview(false)}
+      {showReview && <WeeklyReviewModal tasks={tasks} weights={effWeights} tone={reviewTone} onClose={() => setShowReview(false)}
         onView={(r) => logEvent("weekly_review_viewed", null, { week_start: r.range.start.toISOString().slice(0, 10), tone: r.tone, completed: r.stats.completed, added: r.stats.added, capture_rate: r.stats.captureRate, focus_minutes: r.stats.focusMinutes, delta: r.stats.delta, top_category: r.stats.topCategory?.cat ?? null })} />}
-      {detailTask && <Suspense fallback={null}><TaskDetailModal task={tasks.find(t => t.id === detailTask.id) || detailTask} weights={weights} inSession={sessionDraft.includes(detailTask.id)}
+      {detailTask && <Suspense fallback={null}><TaskDetailModal task={tasks.find(t => t.id === detailTask.id) || detailTask} weights={effWeights} inSession={sessionDraft.includes(detailTask.id)}
         onClose={() => setDetailTask(null)}
         onEdit={(t) => { setDetailTask(null); setEditTask(t); }}
         onMarkDone={(id) => { markDone(id); setDetailTask(null); }}
