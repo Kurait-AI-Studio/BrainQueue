@@ -80,9 +80,9 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
         </div>
 
         <div style={{ marginBottom: "1.2rem" }}>
-          <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Data &amp; privacy</label>
+          <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Memory</label>
           <p style={{ fontSize: "0.72rem", color: "#333", margin: "0.4rem 0 0.8rem", lineHeight: 1.6 }}>
-            Optional, and separate from your account. BrainQueue works fully at every level, and you can change this anytime. See our Privacy Policy for details.
+            Optional, and separate from your account. Controls whether BrainQueue learns from your data to personalize and improve. Works fully at every level; change anytime. See our Privacy Policy.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
             {CONSENT_LEVELS.map((lvl) => {
@@ -95,7 +95,7 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.8rem", color: active ? "#bef24a" : "#cfcfd6" }}>
                     {lvl.label}
-                    {lvl.train && <span style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.06em", color: "#0a0a0d", background: "#bef24a", borderRadius: "5px", padding: "1px 5px", textTransform: "uppercase" }}>improves AI</span>}
+                    {lvl.train && <span style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.06em", color: "#0a0a0d", background: "#bef24a", borderRadius: "5px", padding: "1px 5px", textTransform: "uppercase" }}>learns you</span>}
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "#666", lineHeight: 1.5, marginTop: "0.2rem" }}>{lvl.blurb}</div>
                 </button>
