@@ -4,36 +4,49 @@
 import { useState, useEffect, useRef } from "react";
 import { glass, glassStrong } from "./tokens";
 import { GlassButton } from "./GlassButton";
-import { Dim } from "./misc";
 import { TierBadge } from "./TierBadge";
 import { getSupabase, logEvent, setSurface } from "../lib/client";
 import { humanizeError } from "../lib/errors";
-import { CAT_ACCENT, calcScore } from "../lib/tasks";
+import { CAT_ACCENT, calcScore, URGENCY_META, IMPORTANCE_LABELS, ENERGY_LABELS, EFFORT_LABELS } from "../lib/tasks";
 import {
   CATEGORIES, BRAIN_DUMP_MODEL, BRAIN_DUMP_MODELS, BRAIN_DUMP_PROVIDER,
   BRAIN_DUMP_PROMPT_VERSION, BRAIN_DUMP_MAX_TOKENS, BRAIN_DUMP_SYSTEM,
   TASK_LIST_SCHEMA, sanitizeTask,
 } from "../brainDumpSpec";
 
-const DUMP_DIFF_FIELDS = ["title", "category", "urgency", "importance", "effort", "energy", "pleasure", "est_minutes", "cognitive_load", "ai_delegatable", "multi_step", "recurrence"];
+const DUMP_DIFF_FIELDS = ["title", "category", "urgency", "importance", "effort", "energy", "pleasure", "due_date", "est_minutes", "cognitive_load", "ai_delegatable", "multi_step", "recurrence"];
 // Coarse edit_type tag at capture time (spec: ideally a cheap classification call;
 // a heuristic is far better than nothing and lets us filter typos from signal later).
 const editTypeFor = (field) =>
   field === "title" ? "reword"
   : field === "category" ? "retag"
-  : field === "recurrence" ? "reschedule"
+  : (field === "recurrence" || field === "due_date") ? "reschedule"
   : ["urgency", "importance", "effort", "energy", "pleasure"].includes(field) ? "reprioritize"
   : "field_edit";
+// Pretty due date, e.g. "Jan 15".
+const fmtDue = (d) => { try { return new Date(d + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return d; } };
+
+// A labeled, color-coded, click-to-cycle chip — so an inferred level reads as
+// "This week" / "15 min" instead of a cryptic "U4". Click cycles the value 1→5→1.
+function FeatureChip({ label, value, color, onClick }) {
+  return (
+    <button type="button" onClick={onClick} title={`${label} — click to change`}
+      style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, background: color + "14", border: `1px solid ${color}33`, borderRadius: 8, padding: "3px 9px", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+      <span style={{ fontSize: "0.5rem", color: "#777", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
+      <span style={{ fontSize: "0.72rem", color, fontWeight: 700, whiteSpace: "nowrap" }}>{value}</span>
+    </button>
+  );
+}
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
+export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null }) {
   const [dump, setDump] = useState("");
   const [loading, setLoading] = useState(false);
-  const [parsed, setParsed] = useState(null);
+  const [parsed, setParsed] = useState(initialParsed); // initialParsed seeds the preview (gallery only)
   const [error, setError] = useState(null);
   // Capture state for the correction goldmine.
   const dumpIdRef = useRef(null);          // ties brain_dump_created → parse_* → final_committed
-  const originalRef = useRef(null);        // the AI's untouched v1, to diff against on commit
+  const originalRef = useRef(initialParsed ? initialParsed.map(t => ({ ...t })) : null); // the AI's untouched v1
   const parsedAtRef = useRef(0);           // when the preview appeared (time-to-commit clock)
 
   // Tag this surface for the envelope while the modal is mounted.
@@ -63,7 +76,8 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
         },
         body: JSON.stringify({
           dump,
-          system: BRAIN_DUMP_SYSTEM,
+          // Inject today's date so the model can resolve relative deadlines ("before the 15th").
+          system: `${BRAIN_DUMP_SYSTEM}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.`,
           // Structured outputs: the model is constrained to this schema, so the
           // response text is guaranteed-valid JSON — no markdown fences, no
           // regex scraping, no truncation surprises.
@@ -210,17 +224,27 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights }) {
                         style={{ background: "none", border: "none", color: "#2a2a2a", cursor: "pointer", fontSize: "0.85rem" }}
                         onMouseEnter={e => e.target.style.color = "#ef4444"} onMouseLeave={e => e.target.style.color = "#2a2a2a"}>🗑</button>
                     </div>
-                    <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.55rem", flexWrap: "wrap", alignItems: "center" }}>
-                      <select value={t.category} onChange={e => updateTask(i, { category: e.target.value })}
-                        style={{ background: acc + "14", border: `1px solid ${acc}33`, borderRadius: "20px", color: acc, fontSize: "0.66rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, padding: "2px 8px", outline: "none", cursor: "pointer", appearance: "none" }}>
-                        {CATEGORIES.map(c => <option key={c} value={c} style={{ background: "#101018", color: "#ddd" }}>{c}</option>)}
-                      </select>
-                      <Dim label="U" value={t.urgency} onChange={v => updateTask(i, { urgency: v })} />
-                      <Dim label="I" value={t.importance} onChange={v => updateTask(i, { importance: v })} />
-                      <Dim label="E" value={t.effort} onChange={v => updateTask(i, { effort: v })} />
-                      <Dim label="⚡" value={t.energy} onChange={v => updateTask(i, { energy: v })} />
-                      <TierBadge task={t} showEst />
+                    {/* inferred, editable category (free text) + due date */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.6rem", flexWrap: "wrap" }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: acc, flexShrink: 0 }} />
+                      <input value={t.category} onChange={e => updateTask(i, { category: e.target.value })} aria-label="Category" title="Inferred category — edit to change"
+                        style={{ width: 116, background: acc + "14", border: `1px solid ${acc}33`, borderRadius: 20, color: acc, fontSize: "0.66rem", fontWeight: 700, padding: "3px 9px", outline: "none", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }} />
+                      <input type="date" value={t.due_date || ""} onChange={e => updateTask(i, { due_date: e.target.value })} aria-label="Due date" title={t.due_date ? `Due ${fmtDue(t.due_date)}` : "Add a due date"}
+                        style={{ background: t.due_date ? "#5eead414" : "transparent", border: `1px solid ${t.due_date ? "#5eead433" : "rgba(255,255,255,0.1)"}`, borderRadius: 20, color: t.due_date ? "#5eead4" : "#666", fontSize: "0.66rem", fontWeight: 700, padding: "2px 8px", outline: "none", colorScheme: "dark", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }} />
                     </div>
+
+                    {/* clear, labeled feature chips (click to change) */}
+                    <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", flexWrap: "wrap", alignItems: "stretch" }}>
+                      <FeatureChip label="Urgency" color={URGENCY_META[t.urgency].color} value={URGENCY_META[t.urgency].label} onClick={() => updateTask(i, { urgency: (t.urgency % 5) + 1 })} />
+                      <FeatureChip label="Importance" color="#a78bfa" value={IMPORTANCE_LABELS[t.importance]} onClick={() => updateTask(i, { importance: (t.importance % 5) + 1 })} />
+                      <FeatureChip label="Effort" color="#5eead4" value={EFFORT_LABELS[t.effort]} onClick={() => updateTask(i, { effort: (t.effort % 5) + 1 })} />
+                      <FeatureChip label="Energy" color="#6b9fff" value={ENERGY_LABELS[t.energy]} onClick={() => updateTask(i, { energy: (t.energy % 5) + 1 })} />
+                      <span style={{ display: "inline-flex", alignItems: "center" }}><TierBadge task={t} showEst /></span>
+                    </div>
+
+                    {/* clean, AI-rewritten context → becomes the task's details */}
+                    <input value={t.notes || ""} onChange={e => updateTask(i, { notes: e.target.value })} placeholder="No extra details" aria-label="Details"
+                      style={{ width: "100%", marginTop: "0.55rem", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, color: "#9a9aa6", fontSize: "0.72rem", fontStyle: t.notes ? "normal" : "italic", padding: "6px 9px", outline: "none", boxSizing: "border-box", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }} />
                   </div>
                 );
               })}

@@ -30,7 +30,7 @@ export const BRAIN_DUMP_PROVIDER = BRAIN_DUMP_MODELS[BRAIN_DUMP_MODEL]?.provider
 // the schema changes — telemetry stamps it on every parse event so we can ask, months
 // later, "was prompt v2 better than v1?" (Telemetry Capture Spec, principle 2). The
 // matching row lives in the prompt_registry table (migrations 0006/0007).
-export const BRAIN_DUMP_PROMPT_VERSION = "braindump-v2";
+export const BRAIN_DUMP_PROMPT_VERSION = "braindump-v3";
 
 // max_tokens for the call. 8000 comfortably fits a long dump's worth of structured
 // tasks without truncating (the old 4000 could clip large lists).
@@ -56,8 +56,9 @@ Score every task with integers 1-5:
 - effort: 1 = 2 minutes or less, 2 = ~15 minutes, 3 = ~1 hour, 4 = half a day, 5 = multi-day. Estimate from the task.
 - energy: 1 = doable in "zombie mode", 5 = needs peak focus. Estimate the cognitive load.
 
-category: exactly one of Health, Work, Admin, Social, Finance, Learning, Personal. Pick the single best fit; when two fit, prefer the one describing the task's goal over its medium (paying an invoice is Finance, not Admin).
-notes: a short piece of context taken from the dump, or "" when there is none. Never just repeat the title.
+category: a short, reusable Title-Case label (1-2 words). PREFER one of these common categories when it genuinely fits: Health, Work, Admin, Social, Finance, Learning, Personal. Otherwise INFER a fitting category from the content rather than forcing a generic one — e.g. gym / running / a match → "Sports"; a named project like "BrainQueue" → "BrainQueue" (the project's own name); cooking → "Cooking". Reuse the SAME category across related tasks within the dump, and keep categories short and few so they stay consistent.
+notes: any context mentioned ALONGSIDE a task that is not the action itself — extra details, a person, a link, a constraint, a reason, a sub-note — rewritten as ONE clean, concise sentence in your own words (do not copy the raw text, do not just repeat the title). "" when there is genuinely no extra context.
+due_date: if the text states a deadline or date for the task ("before January 15", "by Friday", "due the 20th", "this weekend", "end of month"), resolve it to a concrete calendar date in YYYY-MM-DD, choosing the next future occurrence relative to today's date (provided below). This is SEPARATE from urgency — a task can be urgent with no fixed date, or dated but not urgent. Use "" when the text gives no date.
 
 Also classify how the task will be worked:
 - est_minutes: a single best estimate of focused minutes to finish (e.g. 5, 25, 90). Keep it realistic and consistent with the effort score.
@@ -65,7 +66,7 @@ Also classify how the task will be worked:
 - ai_delegatable: true if an AI assistant could do most of the work (drafting, summarising, research, coding), false for physical/in-person/decision-only tasks.
 - multi_step: true if the task clearly involves several distinct sub-steps, false if it is a single action.
 
-Example — the line "1. appeler la banque pour la carte + payer facture edf (urgent!!)" yields two tasks: one titled "Call the bank about the card" and one titled "Pay the EDF electricity bill", both category Finance, both urgency 5, each a single low-effort action.
+Example — "1. appeler la banque pour la carte + payer facture edf avant le 15 (urgent!!)" yields two tasks: "Call the bank about the card" and "Pay the EDF electricity bill", both category Finance, both urgency 5; the EDF task gets due_date set to the next 15th of the month. "gym leg day, also research a cheaper protein" yields "Leg day at the gym" (category Sports) and "Research a cheaper protein powder" (category Sports, notes: "Looking for a more affordable option").
 
 If the input contains no actionable tasks, return an empty list.`;
 
@@ -76,18 +77,19 @@ const TASK_ITEM_SCHEMA = {
   type: "object",
   properties: {
     title: { type: "string" },
-    category: { type: "string", enum: CATEGORIES },
+    category: { type: "string" }, // inferred, not a fixed enum (see the prompt)
     urgency: { type: "integer", enum: [1, 2, 3, 4, 5] },
     importance: { type: "integer", enum: [1, 2, 3, 4, 5] },
     effort: { type: "integer", enum: [1, 2, 3, 4, 5] },
     energy: { type: "integer", enum: [1, 2, 3, 4, 5] },
     notes: { type: "string" },
+    due_date: { type: "string" }, // YYYY-MM-DD, or "" when no date is implied
     est_minutes: { type: "integer" },
     cognitive_load: { type: "integer", enum: [1, 2, 3, 4, 5] },
     ai_delegatable: { type: "boolean" },
     multi_step: { type: "boolean" },
   },
-  required: ["title", "category", "urgency", "importance", "effort", "energy", "notes", "est_minutes", "cognitive_load", "ai_delegatable", "multi_step"],
+  required: ["title", "category", "urgency", "importance", "effort", "energy", "notes", "due_date", "est_minutes", "cognitive_load", "ai_delegatable", "multi_step"],
   additionalProperties: false,
 };
 
@@ -107,7 +109,13 @@ export function sanitizeTask(t) {
     const n = Math.round(Number(v));
     return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 3;
   };
-  const category = CATEGORIES.includes(t?.category) ? t.category : "Personal";
+  // Inferred (free) category: trim + cap length, fall back to Personal. No longer forced
+  // into the fixed list — the model may invent a fitting one (e.g. "Sports", "BrainQueue").
+  const rawCat = typeof t?.category === "string" ? t.category.trim().replace(/\s+/g, " ").slice(0, 24) : "";
+  const category = rawCat || "Personal";
+  // due_date: keep only a valid YYYY-MM-DD prefix, else "".
+  const rawDue = typeof t?.due_date === "string" ? t.due_date.trim() : "";
+  const due_date = /^\d{4}-\d{2}-\d{2}/.test(rawDue) ? rawDue.slice(0, 10) : "";
   const effort = clamp(t?.effort);
   const estFromEffort = [2, 15, 60, 240, 480][effort - 1];
   const est = Math.round(Number(t?.est_minutes));
@@ -119,6 +127,7 @@ export function sanitizeTask(t) {
     effort,
     energy: clamp(t?.energy),
     notes: typeof t?.notes === "string" ? t.notes : "",
+    due_date,
     est_minutes: Number.isFinite(est) && est > 0 ? Math.min(est, 2880) : estFromEffort,
     cognitive_load: clamp(t?.cognitive_load),
     ai_delegatable: !!t?.ai_delegatable,

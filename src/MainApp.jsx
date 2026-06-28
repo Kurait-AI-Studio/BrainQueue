@@ -98,6 +98,7 @@ const toRow = (t) => ({
   ai_delegatable: t.ai_delegatable ?? false,
   multi_step: t.multi_step ?? false,
   notes: t.notes || "",
+  due_date: t.due_date || null,
   done: t.done || false,
   added_at: t.addedAt || new Date().toISOString(),
   done_at: t.doneAt || null,
@@ -119,6 +120,7 @@ const fromRow = (r) => ({
   ai_delegatable: r.ai_delegatable ?? false,
   multi_step: r.multi_step ?? false,
   notes: r.notes,
+  due_date: r.due_date ?? undefined,
   done: r.done,
   addedAt: r.added_at,
   doneAt: r.done_at,
@@ -136,7 +138,14 @@ async function fetchRemoteTasks(userId) {
 async function upsertTask(task) {
   const sb = getSupabase();
   if (!sb) return;
-  const { error } = await sb.from("tasks").upsert(toRow(task));
+  const row = toRow(task);
+  let { error } = await sb.from("tasks").upsert(row);
+  // Graceful fallback if migration 0010 (due_date column) hasn't been applied yet:
+  // strip due_date and retry, so task sync never breaks on a pending migration.
+  if (error && /due_date/.test(error.message || "")) {
+    const { due_date, ...rest } = row; // eslint-disable-line no-unused-vars
+    ({ error } = await sb.from("tasks").upsert(rest));
+  }
   if (error) console.error("Supabase upsert:", error);
 }
 

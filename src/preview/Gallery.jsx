@@ -79,7 +79,11 @@ export function Gallery() {
   if (_view === "shell") return <ShellPreview />;
   if (_view === "detail") return <TaskDetailModal task={mockTasks[0]} weights={undefined} inSession={false} onClose={noop} onEdit={noop} onMarkDone={noop} onDelete={noop} onSchedule={noop} onAddToSession={noop} onFocusNow={noop} />;
   if (_view === "session2") return <FocusMode session={mockSession} tasks={focusMock.filter(t => !t.done).slice(0, 3)} onMarkDone={noop} onExit={noop} />;
-  if (_view === "braindump") return <BrainDumpModal onClose={noop} onTasksAdded={noop} weights={undefined} />;
+  if (_view === "braindump") return <BrainDumpModal onClose={noop} onTasksAdded={noop} weights={undefined} initialParsed={[
+    { _pid: "d:0", title: "Pay the EDF electricity bill", category: "Finance", urgency: 5, importance: 4, effort: 1, energy: 1, pleasure: 1, notes: "Due before the 15th to avoid a late fee.", due_date: "2026-07-15", est_minutes: 5, cognitive_load: 1, ai_delegatable: false, multi_step: false },
+    { _pid: "d:1", title: "Leg day at the gym", category: "Sports", urgency: 3, importance: 3, effort: 2, energy: 4, pleasure: 4, notes: "", due_date: "", est_minutes: 60, cognitive_load: 1, ai_delegatable: false, multi_step: false },
+    { _pid: "d:2", title: "Draft the BrainQueue landing copy", category: "BrainQueue", urgency: 4, importance: 5, effort: 3, energy: 4, pleasure: 3, notes: "Lead with the ADHD angle and the Memory feature.", due_date: "2026-07-04", est_minutes: 90, cognitive_load: 4, ai_delegatable: true, multi_step: true },
+  ]} />;
   if (_view === "onboarding") return <Onboarding onComplete={noop} />;
   const active = mockTasks.filter(t => !t.done);
   const done = mockTasks.filter(t => t.done);
