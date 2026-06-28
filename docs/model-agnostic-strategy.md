@@ -142,20 +142,23 @@ We already are, structurally. To finish it:
 
 ## 5. Next steps (sequenced)
 
+> **Status update (v2.3.0):** items 1, 2, and 4 below are **shipped**; a blind model duel
+> (`eval/duel.*`) stands in for part of the golden set. Remaining: the golden-set gate, the
+> few-shot bank, and the scale/OSS work.
+
 **Now (pre-traction, no GPU, no OSS yet):**
-1. Switch `BRAIN_DUMP_MODEL` → `gpt-4.1-mini` (or `gpt-4o-mini`); add a per-day dump cap. (30× cost
-   cut, protects the free tier. One line + a guard.)
-2. Ship the **correction-capture pair** (A4): store `{dump, model_output, user_final}` per parse.
-   Costs nothing now, and it's the raw material for everything in §3. **Do this before you have
-   users — every early session is irreplaceable training data.**
-3. Start the **golden set**: hand-label 30–50 real dumps (you already have `brain-dump-samples/`),
-   including multilingual and messy ones, with known-good outputs.
+1. ✅ **Done** — `BRAIN_DUMP_MODEL` is `gpt-4.1-mini` (~11× cheaper), with a server-authoritative
+   per-day dump cap (migration 0009).
+2. ✅ **Done** — the **correction-capture pair** ships: `final_committed.final_tasks` + `task_id_map`
+   store `{dump → model_output → user_final}` per parse, the raw material for everything in §3.
+3. Start the **golden set**: hand-label 30–50 real dumps (you have `brain-dump-samples/` + the duel
+   outputs), including multilingual and messy ones, with known-good outputs.
 
 **Next (first users, first loop):**
-4. Build **personalized scoring** (learn `weights` from accept/edit/complete). This is the first
-   visible "it learns me" feature and it backs the landing-page promise.
-5. Build the **few-shot bank** from corrections; inject per-user. Re-run the eval to quantify the
-   lift on small models.
+4. ✅ **Done (Level 0)** — **personalized scoring** learns `weights` from completions and re-ranks
+   Do Now (`src/lib/adapt.js`), gated on Memory. The first visible "it learns me" feature.
+5. Build the **few-shot bank** from corrections; inject per-user. Re-run the duel/eval to quantify
+   the lift on small models.
 6. Add the **eval gate** (A2) to CI so no regression ships.
 
 **Later (scale / sovereignty):**

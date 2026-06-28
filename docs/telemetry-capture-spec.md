@@ -31,7 +31,8 @@
 | `app_version` | string | attribute behavior to a build |
 | `surface` | enum (web/ios/desktop + screen) | where it happened |
 | `consent_state` | enum (full / product-only / none) | filter for lawful reuse |
-| `payload` | json | event-specific fields (below) |
+| `source` | enum (user / google / microsoft / provider) | data provenance — training keeps only `user` |
+| `payload` / `context` | json | event-specific fields (below); also carries `source` |
 
 ---
 
@@ -123,6 +124,26 @@ Capturing comprehensively is right for *behavioral and structural* data — it's
 - **Consent is per-purpose and separable.** "Use my data to run BrainQueue" ≠ "use my data to train BrainQueue's models." Log the consent state on every event so that when you *do* build the loop, you can trivially filter to the lawfully-usable subset. Retrofitting consent onto already-collected data is often legally useless — so this field is the one piece of "loop" plumbing worth having from day one.
 
 You're not hoarding blindly — you're hoarding *behavior* generously and *sensitive content* deliberately, with a consent tag that future-proofs both.
+
+---
+
+## 6b. Implementation status (v2.3.0) — spec vs. reality
+
+This spec is the target model; here's what's actually wired today:
+
+- **Consent is built.** A user-facing **"Memory"** opt-in maps to `consent_state` (`full` =
+  personalize + train, `product-only` = service only, `none` = minimal), versioned and recorded
+  via immutable `consent_updated` events; lowering it logs `training_data_deletion_requested`.
+- **Provenance is built.** Every event carries `source`; `consent.isTrainingEligible()` keeps only
+  `full`-consent, `user`-sourced data, and **never** Google/Microsoft-derived data (`src/lib/consent.js`).
+- **De-identification helper** (`src/lib/deidentify.js`) strips direct identifiers from free text
+  before any record reaches a training set.
+- **The correction pair is captured directly:** `final_committed` stores `final_tasks[]` + a
+  `_pid → task id` map, so (model v1 → human-corrected output) is a 2-row read, not an edit replay.
+- **First consumption exists:** Level 0 adaptation (`src/lib/adapt.js`) re-ranks from completions;
+  cross-dump memory feeds existing categories/tasks back into new dumps. The deeper loop is ahead.
+- **Brain Dump is v3:** categories are inferred (free text, not enum), a `due_date` is extracted.
+- **Process guard:** any capture change must follow [`telemetry-change-checklist.md`](telemetry-change-checklist.md).
 
 ---
 

@@ -72,7 +72,10 @@ At **$9.99/mo** (net ~$9.40 after Stripe), per engaged user:
 
 ## 5. What to build, in order
 
-1. **Level 0 — learned weights + real durations** (no LLM). The fastest path to *visible* "it adapts to me," backs the Memory promise honestly, and is free. Reads the event log you already capture; writes a per-user signal profile.
+1. ✅ **Shipped — Level 0: learned weights** (`src/lib/adapt.js`, no LLM). Do Now re-ranks toward
+   the tasks you actually complete, gated on Memory, shown as "Tuned to you." Real-duration
+   calibration is the natural next add to Level 0. **Cross-dump memory** (existing categories /
+   recent tasks fed into new dumps) also ships, ungated — it's service personalization, not training.
 2. **Level 1 — rolling per-user profile** injected into the brain-dump prompt + proposals. A cheap periodic summarization call + a few hundred tokens per dump.
 3. **Level 1.5 — few-shot from the user's own corrections** (you already capture `final_committed.final_tasks` — the labeled pairs are sitting there).
 4. **(Scale) Level 2 — cohort fine-tune/distillation** once you have enough consented, de-identified data.

@@ -48,7 +48,7 @@ brew install supabase/tap/supabase
 supabase login
 supabase link --project-ref urnmhmagdnuojeludshl
 
-# apply any unapplied migrations (e.g. 0009 brain_dump_quota)
+# apply any unapplied migrations (e.g. 0009 brain_dump_quota, 0010 due_date + braindump-v3)
 supabase db push
 
 # ship the daily cap + CORS allowlist + (later) any new providers
