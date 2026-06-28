@@ -23,6 +23,15 @@ export const CAT_GLOW = (cat) => CATEGORY_COLORS[cat]?.glow || hexToRgb(CAT_ACCE
 export const ENERGY_LABELS = { 1: "Zombie mode", 2: "Low", 3: "Normal", 4: "Focused", 5: "Peak" };
 export const PLEASURE_LABELS = { 1: "😣 Dread", 2: "😕 Meh", 3: "😐 Neutral", 4: "🙂 Enjoy", 5: "😍 Love it" };
 export const EFFORT_LABELS = { 1: "2 min", 2: "15 min", 3: "1 hour", 4: "Half day", 5: "Multi-day" };
+export const IMPORTANCE_LABELS = { 1: "Nice to have", 2: "Minor", 3: "Useful", 4: "Important", 5: "Critical" };
+// Short label + color per urgency, for compact, scannable chips.
+export const URGENCY_META = {
+  5: { label: "Today", color: "#ff6b6b" },
+  4: { label: "This week", color: "#ff9b54" },
+  3: { label: "This month", color: "#f5c451" },
+  2: { label: "Eventually", color: "#7c8694" },
+  1: { label: "Someday", color: "#5a6472" },
+};
 export const DEFAULT_WEIGHTS = { urgency: 30, importance: 30, effort: 15, energy: 10, pleasure: 15 };
 
 export function calcScore(task, w = DEFAULT_WEIGHTS) {
