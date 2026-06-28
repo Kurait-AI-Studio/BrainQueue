@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Brain Dump duel — blind rating</title>
+<style>
+  :root { --bg:#0a0a0d; --card:#14141a; --line:rgba(255,255,255,0.08); --ink:#e8e8e8; --muted:#8a8a92; --accent:#bef24a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:24px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:0.85rem; margin-bottom:18px; }
+  .bar { position:sticky; top:0; background:var(--bg); padding:10px 0; z-index:5; display:flex; gap:12px; align-items:center; border-bottom:1px solid var(--line); margin-bottom:18px; }
+  button { font-family:inherit; cursor:pointer; border-radius:9px; border:1px solid var(--line); background:#1b1b22; color:var(--ink); padding:8px 14px; font-size:0.82rem; }
+  button.primary { background:var(--accent); color:#0a0a0d; border:none; font-weight:700; }
+  .diff { font-size:0.7rem; font-weight:800; letter-spacing:0.12em; text-transform:uppercase; color:var(--accent); margin:26px 0 10px; }
+  .case { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .dump { white-space:pre-wrap; font-size:0.78rem; color:var(--muted); background:#0d0d10; border:1px solid var(--line); border-radius:10px; padding:10px 12px; max-height:140px; overflow:auto; margin-bottom:12px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .col { border:1px solid var(--line); border-radius:10px; padding:10px; }
+  .col h4 { margin:0 0 8px; font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+  .t { border-bottom:1px solid var(--line); padding:6px 0; font-size:0.82rem; }
+  .t:last-child { border-bottom:none; }
+  .t .meta { color:var(--muted); font-size:0.68rem; margin-top:2px; }
+  .cat { display:inline-block; border-radius:20px; padding:1px 7px; font-size:0.62rem; font-weight:700; }
+  .vote { display:flex; gap:8px; justify-content:center; margin-top:12px; }
+  .vote button.sel { outline:2px solid var(--accent); }
+  .reveal { font-size:0.72rem; color:var(--accent); margin-top:8px; text-align:center; }
+  .tally { background:var(--card); border:1px solid var(--accent); border-radius:14px; padding:18px; margin:18px 0; }
+  table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+  th,td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); }
+</style>
+</head>
+<body>
+  <h1>Brain Dump duel — blind</h1>
+  <div class="sub">Two models, hidden. Sides are randomized per case. Judge each pair, then reveal. Your votes are saved locally.</div>
+  <div class="bar">
+    <button class="primary" id="reveal">Reveal results</button>
+    <button id="reset">Reset votes</button>
+    <span id="progress" class="sub" style="margin:0"></span>
+  </div>
+  <div id="root"></div>
+  <div id="results"></div>
+
+<script src="duel/data.js"></script>
+<script>
+const CAT_COLOR = { Health:"#fb9fc4", Work:"#a78bfa", Admin:"#5eead4", Social:"#6b9fff", Finance:"#bef24a", Learning:"#f0b46b", Personal:"#9aa0aa" };
+const cases = window.DUEL_CASES || [];
+const key = window.DUEL_KEY || {};
+const VOTES_KEY = "bq_duel_votes";
+let votes = JSON.parse(localStorage.getItem(VOTES_KEY) || "{}");
+const save = () => localStorage.setItem(VOTES_KEY, JSON.stringify(votes));
+
+function taskHTML(t) {
+  const c = CAT_COLOR[t.category] || "#9aa0aa";
+  return `<div class="t"><div>${escapeHtml(t.title)}</div><div class="meta"><span class="cat" style="background:${c}22;color:${c}">${t.category}</span> &nbsp; U${t.urgency} I${t.importance} E${t.effort} En${t.energy}${t.pleasure?` P${t.pleasure}`:''} · ~${t.est_minutes}m${t.ai_delegatable?' · AI':''}${t.multi_step?' · multi':''}</div></div>`;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function render() {
+  const root = document.getElementById("root");
+  const order = ["easy","medium","hard"];
+  root.innerHTML = order.map(d => {
+    const group = cases.filter(c => c.difficulty === d);
+    if (!group.length) return "";
+    return `<div class="diff">${d} · ${group.length} cases</div>` + group.map(c => {
+      const v = votes[c.id];
+      return `<div class="case" id="case-${c.id}">
+        <div class="sub" style="margin-bottom:6px">${c.sample_name}</div>
+        <details><summary class="sub" style="cursor:pointer">show dump</summary><div class="dump">${escapeHtml(c.sample_text)}</div></details>
+        <div class="cols">
+          <div class="col"><h4>Option A (left) — ${c.left.tasks.length} tasks</h4>${c.left.tasks.map(taskHTML).join("")}</div>
+          <div class="col"><h4>Option B (right) — ${c.right.tasks.length} tasks</h4>${c.right.tasks.map(taskHTML).join("")}</div>
+        </div>
+        <div class="vote">
+          <button data-id="${c.id}" data-v="left" class="${v==='left'?'sel':''}">← Left better</button>
+          <button data-id="${c.id}" data-v="tie" class="${v==='tie'?'sel':''}">Tie</button>
+          <button data-id="${c.id}" data-v="right" class="${v==='right'?'sel':''}">Right better →</button>
+        </div>
+        <div class="reveal" id="rev-${c.id}"></div>
+      </div>`;
+    }).join("");
+  }).join("");
+  root.querySelectorAll(".vote button").forEach(b => b.onclick = () => { votes[b.dataset.id] = b.dataset.v; save(); render(); updateProgress(); });
+  updateProgress();
+}
+function updateProgress(){ document.getElementById("progress").textContent = `${Object.keys(votes).length} / ${cases.length} rated`; }
+
+document.getElementById("reset").onclick = () => { votes = {}; save(); document.getElementById("results").innerHTML=""; render(); };
+
+document.getElementById("reveal").onclick = () => {
+  // per-case reveal
+  for (const c of cases) {
+    const k = key[c.id]; const el = document.getElementById("rev-"+c.id);
+    if (k && el) el.textContent = `Left = ${k.left_model} ($${(k.left_cost).toFixed(5)}) · Right = ${k.right_model} ($${(k.right_cost).toFixed(5)})`;
+  }
+  // tally per difficulty: who did the user prefer?
+  const diffs = ["easy","medium","hard"];
+  const score = {}; diffs.forEach(d => score[d] = { "Claude Sonnet 4.6":0, "GPT-4.1 mini":0, tie:0, rated:0 });
+  let aCost=0,bCost=0;
+  for (const c of cases) {
+    const k = key[c.id]; if (!k) continue;
+    aCost += k.a_cost; bCost += k.b_cost;
+    const v = votes[c.id]; if (!v) continue;
+    score[c.difficulty].rated++;
+    if (v === "tie") score[c.difficulty].tie++;
+    else { const winnerModel = v === "left" ? k.left_model : k.right_model; score[c.difficulty][winnerModel]++; }
+  }
+  const rows = diffs.map(d => `<tr><td>${d}</td><td>${score[d]["Claude Sonnet 4.6"]}</td><td>${score[d]["GPT-4.1 mini"]}</td><td>${score[d].tie}</td><td>${score[d].rated}</td></tr>`).join("");
+  document.getElementById("results").innerHTML = `<div class="tally">
+    <h3 style="margin:0 0 10px">Your blind preference</h3>
+    <table><thead><tr><th>Difficulty</th><th>Sonnet wins</th><th>GPT-4.1 mini wins</th><th>Tie</th><th>Rated</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="sub" style="margin-top:12px">Cost across all ${cases.length} samples: <b>Sonnet $${aCost.toFixed(4)}</b> vs <b>GPT-4.1 mini $${bCost.toFixed(4)}</b> — ${(aCost/Math.max(bCost,1e-9)).toFixed(1)}× cheaper. If GPT-4.1 mini ties or wins on your ratings, the switch is a clear win.</p>
+  </div>`;
+  document.getElementById("results").scrollIntoView({ behavior:"smooth" });
+};
+
+if (!cases.length) document.getElementById("root").innerHTML = '<p class="sub">No data yet. Run <code>node eval/duel.mjs</code> first (needs ANTHROPIC_API_KEY + OPENAI_API_KEY in .env).</p>';
+else render();
+</script>
+</body>
+</html>
