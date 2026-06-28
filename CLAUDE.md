@@ -105,6 +105,7 @@ applied <versions>` first. (0008 = `event_id` unique index; 0009 = daily dump qu
 ## Docs index
 - [`docs/telemetry-capture-spec.md`](docs/telemetry-capture-spec.md) — the capture principles (the moat spec).
 - [`docs/telemetry-change-checklist.md`](docs/telemetry-change-checklist.md) — pre-merge checklist when capture changes (consent, source, de-id, Google policy).
+- [`docs/data-flow-map.md`](docs/data-flow-map.md) — every user route, what data each captures, and where to add an AI layer (with a diagram).
 - [`docs/legal/`](docs/legal/) — privacy policy (incl. §4 training consent), terms, CGV, mentions légales, cookie notice (drafts).
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the product end-to-end, screen by screen (`docs/workflow/*.png`).
 - [`docs/RELEASING.md`](docs/RELEASING.md) — versioning + release process (tag-triggered).
