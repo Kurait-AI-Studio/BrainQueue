@@ -4,6 +4,7 @@ import { GlassButton, ViewTab, TaskCard, DoneCard, MouseGlow, EmptyState, Inline
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
 import { getSupabase, getUserId, setActiveUser, setConsentState, getConsentState, updateConsent, setActiveSessionId, setSurface, logEvent, flushOutbox, insertSession, finalizeSession, signOut } from "./lib/client";
 import { ConsentNudge } from "./ui/ConsentNudge";
+import { Onboarding } from "./ui/Onboarding";
 import { FocusMode } from "./ui/FocusMode";
 import { BrainDumpModal } from "./ui/BrainDumpModal";
 import { WeeklyReviewModal } from "./ui/WeeklyReviewModal";
@@ -204,6 +205,9 @@ export function MainApp({ session }) {
     try { return localStorage.getItem(`bq_consent_${userId}`) || "product-only"; } catch { return "product-only"; }
   });
   const [nudgeHidden, setNudgeHidden] = useState(false); // dismiss for this session only
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    try { return !localStorage.getItem(`bq_onboarded_${userId}`); } catch { return false; }
+  });
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE } = state;
@@ -687,6 +691,12 @@ export function MainApp({ session }) {
       <XpBurst burst={xpBurst} onDone={() => setXpBurst(null)} />
       <SetCelebration celebration={celebration} onDone={() => setCelebration(null)} />
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
+      {showOnboarding && <Onboarding onComplete={(choice) => {
+        try { localStorage.setItem(`bq_onboarded_${userId}`, "1"); } catch { /* best effort */ }
+        if (choice) { updateConsent(choice); setConsentLocal(choice); }
+        logEvent("onboarding_completed", null, { memory: choice || "skipped" });
+        setShowOnboarding(false);
+      }} />}
     </>
   );
 }
