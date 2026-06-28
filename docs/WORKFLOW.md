@@ -25,18 +25,22 @@ row to the user; tasks sync across devices in realtime. **No AI.**
 ![Brain Dump](workflow/02-brain-dump.png)
 
 Paste anything — numbered lists, prose, checkboxes, voice transcripts, mixed languages. One LLM
-call turns it into clean, deduplicated, **scored and classified** tasks:
+call turns it into clean, deduplicated, **scored and classified** tasks (Brain Dump **v3**):
 
 - extracts one task per action, drops non-actionable lines, translates to English
 - scores **urgency / importance / effort / energy** (1–5)
-- classifies **category, est_minutes, cognitive_load, ai_delegatable, multi_step** (→ the *tier*)
+- **infers a category** (not a fixed list — gym → "Sports", a project → its name)
+- extracts a **due date** from deadline cues ("before Jan 15"), resolved against today's date
+- rewrites surrounding context into clean task **details** (`notes`)
+- classifies **est_minutes, cognitive_load, ai_delegatable, multi_step** (→ the *tier*)
+- **cross-dump memory:** the user's existing categories + recent tasks are fed in so dumps stay
+  consistent and don't duplicate (runs for everyone — it's service personalization, not training)
 
 **How it runs:** the browser sends the dump + prompt + JSON schema to the **`brain-dump` Supabase
 edge function**, which calls the model server-side (the API key never touches the browser). It's
-provider-aware — **`claude-sonnet-4-6`** by default, one-line switchable to **`gpt-4o-mini`** or
-others. Structured outputs guarantee valid JSON.
-**This is the highest-leverage, highest-frequency AI touchpoint — and a perfect job for a *cheap*
-model** (see the cost map). Output lands as the task cards in step 3.
+provider-aware — default **`gpt-4.1-mini`** (~11× cheaper than Sonnet 4.6), one-line switchable.
+Structured outputs guarantee valid JSON. The editable preview shows labeled, color-coded features
+("This week", "15 min"). Output lands as the task cards in step 3.
 
 ---
 
@@ -109,16 +113,18 @@ free for the execution layer.
 
 | Workflow step | AI today | Recommended model | ~Cost / user / mo |
 |---|---|---|---|
-| **Brain Dump parse** | ✅ yes | **cheap** — gpt-4o-mini / Haiku 4.5 | $0.05 – 0.40 |
-| Prioritization / scoring | ⬜ no (deterministic) | none | $0 |
+| **Brain Dump parse** | ✅ yes | **`gpt-4.1-mini` (shipped)** | ~$0.02 – 0.10 |
+| Prioritization / scoring | ⚖️ heuristic | none | $0 |
+| **Adaptation (Level 0)** | ✅ shipped | none — heuristic over your own events | $0 |
 | Focus Sets | ⚖️ heuristic | none (or cheap) | ~$0 |
 | Weekly review | ⚖️ heuristic | none (or cheap, weekly) | ~$0 |
 | Analytics / celebration | ⬜ no | none | $0 |
 | **Agentic task execution** | 🔮 future | **frontier — Opus / Fable, metered** | the variable — must cap |
-| **Learning loop / weekly distillation** | 🔮 future | cheap + Batch API (−50%) | <$0.10 |
+| **Learning loop (Level 1–2)** | 🔮 future | cheap + Batch API (−50%) | <$0.10 |
 
 Model prices (per 1M tokens) for reference: Fable 5 $10/$50 · Opus 4.8 $5/$25 · Sonnet 4.6 $3/$15 ·
-Haiku 4.5 $1/$5 · gpt-4o-mini $0.15/$0.60. **A brain dump on gpt-4o-mini is ~$0.001** — negligible.
+Haiku 4.5 $1/$5 · **gpt-4.1-mini $0.40/$1.60 (default)** · gpt-4o-mini $0.15/$0.60. **A brain dump
+on gpt-4.1-mini is ~$0.001** — negligible.
 A single agentic execution run can be **$0.70–$2.00** — that's the only thing to meter.
 
 **The moat reduces your COGS:** the captured corrections (your own past edits of AI output) become
@@ -129,22 +135,25 @@ frontier money only on execution, not organization.
 
 ## The telemetry spine (why every step matters)
 
-Every action above emits an append-only event into `task_events` (with a full envelope: session,
-sequence, schema/app version, surface, consent, tz) — `brain_dump_created`, `parse_result` (raw
-input **and** raw model output, tokens, cost), per-field `task_edited` corrections,
-`task_completed`, `session_completed`, `bonus_earned`, `weekly_review_viewed`, and more. Nothing
-reads it yet — that's deliberate. It's the substrate the **learning loop** (🔮) will read to
-personalize prioritization and proposals. Capturing it from user #1 is why none of the first week's
-data is ever lost.
+Every action above emits an append-only event into `task_events` (full envelope: session,
+sequence, schema/app version, surface, **consent**, **source** provenance, tz) —
+`brain_dump_created`, `parse_result` (raw input **and** raw model output, tokens, cost),
+`final_committed` (the human-corrected `final_tasks[]` + a `_pid → task id` map = a self-contained
+training pair), per-field `task_edited` corrections, `task_completed`, `session_completed`,
+`consent_updated`, `onboarding_completed`, and more. **Level 0 adaptation now reads it** — Do Now
+re-ranks from your completions — and the deeper loop (per-user profiles, distillation) is the next
+frontier. Capturing it from user #1 is why none of the first week's data is ever lost.
 
 ---
 
 ## Feature recap (everything built)
 
-**Capture** — Brain Dump (AI extraction/scoring/classification, server-side, multi-provider) ·
-manual task add · categories · recurrence.
-**Prioritize** — deterministic score with adjustable weights · tiers (reflex/standard/heavy) ·
-effort/energy/cognitive-load classification.
+**Onboard** — first-run flow: welcome → demo dump → simulated session with an XP win → the
+**Memory** ask (opt-in personalization + training consent), with a recurring nudge.
+**Capture** — Brain Dump v3 (inferred categories, due dates, clean notes, cross-dump memory,
+`gpt-4.1-mini`, server-side) · manual task add · categories · recurrence.
+**Prioritize** — deterministic score with adjustable weights, **adapted to you (Level 0)** when
+Memory is on · tiers (reflex/standard/heavy) · effort/energy/cognitive-load classification.
 **Focus** — "Focus Sets Proposed for You" (3 sets, per-set XP, choose → session) · full-screen
 Pomodoro with calm-start ceremony, breaks, pause · responsive on mobile.
 **Reward / gamify** — XP curve (Level 10 "Transformed" ≈ 22.5k XP, ~4 months) · `+XP` pop on each
@@ -152,9 +161,13 @@ task · big confetti celebration gated to set-clears / combos / streaks · stack
 **Review** — weekly narrative review with selectable tone · analytics dashboard.
 **Shell / identity** — persistent sidebar (clear nav, level + XP) · clean Plus Jakarta dark theme ·
 migrated task cards.
-**Infra** — Supabase Auth + RLS + realtime · telemetry capture v2 (append-only log + registries) ·
-Anthropic/OpenAI edge-function proxy (keys server-side only) · `src/ui` component library synced to
-claude.ai/design · tag-driven GitHub Releases (now **v2.0.0**) · model eval harness.
+**Security & privacy** — HTTP security headers (CSP/HSTS/frame/nosniff) · Turnstile captcha on
+magic-link login · server-authoritative daily dump cap · CORS allowlist · CI dependency audit ·
+Memory consent (de-identification + no-Google-data-in-training) · errors humanized (no SQL leak).
+**Infra** — Supabase Auth + RLS + realtime · telemetry capture (append-only log + registries +
+consent/source) · Anthropic/OpenAI edge-function proxy, default **`gpt-4.1-mini`** (keys
+server-side only) · `src/ui` component library · tag-driven GitHub Releases (now **v2.3.0**) ·
+brain-dump eval harness + blind model duel (`eval/duel.*`).
 
 ### XP curve (reference)
 ![XP curve](workflow/09-xp-curve.png)
