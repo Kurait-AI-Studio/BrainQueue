@@ -4,6 +4,7 @@
 // Module state here is a per-tab singleton (one signed-in user at a time).
 import { createClient } from "@supabase/supabase-js";
 import { createOutbox, eventUuid } from "./telemetry";
+import { CONSENT_VERSION, normalizeConsent } from "./consent";
 
 // ── Signed-in user ───────────────────────────────────────────────────────────
 // Kept in module scope so the row helpers can stamp user_id without threading it
@@ -27,6 +28,7 @@ let _consentState = "product-only";  // full | product-only | none — tag every
 let _activeSessionId = null;         // set while a focus session is live; groups its events
 let _activeSurface = "web";          // coarse screen hint (web/web:focus/web:braindump…)
 export const setConsentState = (c) => { _consentState = c; };
+export const getConsentState = () => _consentState;
 export const setActiveSessionId = (id) => { _activeSessionId = id; };
 export const setSurface = (s) => { _activeSurface = s; };
 
@@ -84,6 +86,28 @@ export function logEvent(eventType, taskId = null, context = null) {
   };
   _outbox.enqueue(row);   // durable first — persisted before any send
   _outbox.flush();
+}
+
+// Record an explicit, auditable data-use consent choice. Persists the level (as a
+// back-compatible string) plus the consent version + timestamp, updates the runtime flag
+// that tags every event, and writes an immutable `consent_updated` event. A downgrade
+// from "full" is a withdrawal: we also log a deletion request for the user's
+// training-eligible raw data (fulfilled server-side), per the privacy policy (§4).
+export function updateConsent(next) {
+  const prev = _consentState;
+  const state = normalizeConsent(next);
+  setConsentState(state);
+  try {
+    if (_userId) {
+      localStorage.setItem(`bq_consent_${_userId}`, state);
+      localStorage.setItem(`bq_consent_meta_${_userId}`, JSON.stringify({ version: CONSENT_VERSION, ts: new Date().toISOString() }));
+    }
+  } catch { /* storage blocked — the event below is still the durable record */ }
+  logEvent("consent_updated", null, { consent_state: state, previous: prev, consent_version: CONSENT_VERSION });
+  if (prev === "full" && state !== "full") {
+    logEvent("training_data_deletion_requested", null, { reason: "consent_withdrawn", consent_version: CONSENT_VERSION });
+  }
+  return state;
 }
 
 // ── Focus sessions ───────────────────────────────────────────────────────────

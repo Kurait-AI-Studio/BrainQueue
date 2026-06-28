@@ -4,12 +4,15 @@ import { GlassButton } from "./GlassButton";
 import { WeightSlider } from "./misc";
 import { DEFAULT_WEIGHTS } from "../lib/tasks";
 import { REVIEW_TONES, DEFAULT_REVIEW_TONE } from "../lib/weeklyReview";
+import { CONSENT_LEVELS } from "../lib/consent";
+import { getConsentState, updateConsent } from "../lib/client";
 
 // Settings: score-weight sliders + the weekly-review tone. (Brain Dump runs through a
 // server-side edge function now, so there's no user-facing API key.)
 export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
   const [w, setW] = useState({ ...DEFAULT_WEIGHTS, ...(weights || {}) });
   const [tone, setTone] = useState(reviewTone || DEFAULT_REVIEW_TONE);
+  const [consent, setConsent] = useState(getConsentState());
   const setWField = (k, v) => setW(prev => ({ ...prev, [k]: v }));
   const total = w.urgency + w.importance + w.effort + w.energy + (w.pleasure ?? 0);
   const pct = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
@@ -70,6 +73,31 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
                   transition: "all 0.15s",
                 }}>
                   {t.emoji} {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: "1.2rem" }}>
+          <label style={{ fontSize: "0.75rem", color: "#555", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.07em" }}>Data &amp; privacy</label>
+          <p style={{ fontSize: "0.72rem", color: "#333", margin: "0.4rem 0 0.8rem", lineHeight: 1.6 }}>
+            Optional, and separate from your account. BrainQueue works fully at every level, and you can change this anytime. See our Privacy Policy for details.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+            {CONSENT_LEVELS.map((lvl) => {
+              const active = consent === lvl.id;
+              return (
+                <button key={lvl.id} onClick={() => { setConsent(lvl.id); updateConsent(lvl.id); }} style={{
+                  ...glass, borderRadius: "10px", padding: "0.7rem 0.85rem", cursor: "pointer", textAlign: "left",
+                  border: `1px solid ${active ? "#bef24a66" : "rgba(255,255,255,0.06)"}`,
+                  background: active ? "rgba(232,255,90,0.08)" : glass.background, transition: "all 0.15s",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", fontWeight: 700, fontSize: "0.8rem", color: active ? "#bef24a" : "#cfcfd6" }}>
+                    {lvl.label}
+                    {lvl.train && <span style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.06em", color: "#0a0a0d", background: "#bef24a", borderRadius: "5px", padding: "1px 5px", textTransform: "uppercase" }}>improves AI</span>}
+                  </div>
+                  <div style={{ fontSize: "0.7rem", color: "#666", lineHeight: 1.5, marginTop: "0.2rem" }}>{lvl.blurb}</div>
                 </button>
               );
             })}
