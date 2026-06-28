@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } fro
 import { CATEGORIES } from "./brainDumpSpec";
 import { GlassButton, ViewTab, TaskCard, DoneCard, MouseGlow, EmptyState, InlineCatAdd, Toast, XpBurst, SetCelebration, AppSidebar } from "./ui";
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
-import { getSupabase, getUserId, setActiveUser, setConsentState, setActiveSessionId, setSurface, logEvent, flushOutbox, insertSession, finalizeSession, signOut } from "./lib/client";
+import { getSupabase, getUserId, setActiveUser, setConsentState, getConsentState, updateConsent, setActiveSessionId, setSurface, logEvent, flushOutbox, insertSession, finalizeSession, signOut } from "./lib/client";
+import { ConsentNudge } from "./ui/ConsentNudge";
 import { FocusMode } from "./ui/FocusMode";
 import { BrainDumpModal } from "./ui/BrainDumpModal";
 import { WeeklyReviewModal } from "./ui/WeeklyReviewModal";
@@ -197,6 +198,12 @@ export function MainApp({ session }) {
   // run BrainQueue, but NOT to train on their data). Every event is tagged with it so a
   // future learning loop can trivially filter to the consented subset (principle 6).
   try { setConsentState(localStorage.getItem(`bq_consent_${userId}`) || "product-only"); } catch { /* default stands */ }
+
+  // React mirror of the consent flag, so the nudge re-renders when it changes.
+  const [consentState, setConsentLocal] = useState(() => {
+    try { return localStorage.getItem(`bq_consent_${userId}`) || "product-only"; } catch { return "product-only"; }
+  });
+  const [nudgeHidden, setNudgeHidden] = useState(false); // dismiss for this session only
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE } = state;
@@ -615,6 +622,19 @@ export function MainApp({ session }) {
           </div>
         )}
 
+        {!nudgeHidden && consentState !== "full" && (
+          <div style={{ padding: "0.8rem 1.5rem 0" }}>
+            <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+              <ConsentNudge
+                consent={consentState}
+                onEnable={() => { updateConsent("full"); setConsentLocal("full"); setToast({ type: "success", msg: "Self-learning on — BrainQueue will start adapting to you ✓" }); }}
+                onOpenSettings={() => setShowSettings(true)}
+                onDismiss={() => setNudgeHidden(true)}
+              />
+            </div>
+          </div>
+        )}
+
         <div style={{ padding: "0.9rem 1.5rem 0.4rem" }}>
           <div style={{ maxWidth: "720px", margin: "0 auto" }}>
             <p style={{ fontSize: "0.7rem", color: "#3a3a3a", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", letterSpacing: "0.06em" }}>
@@ -641,7 +661,7 @@ export function MainApp({ session }) {
         </div>
       </div>
 
-      {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => setShowSettings(false)} /></Suspense>}
+      {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={weights} />}
       {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
