@@ -7,6 +7,16 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+### Changed
+- **Cross-dump category consistency now runs for everyone**, not only with Memory on. It uses
+  only your own data to serve your own dump (providing the service, not training), so it
+  doesn't require the training opt-in. Memory still gates behavioral learning (Level 0) and
+  model training.
+
+### Internal
+- `app_version` in telemetry is now injected from `package.json` at build time, so it can
+  never drift from the released version again.
+
 ## [2.3.0] — 2026-06-28
 The release that turns the telemetry foundation into a real, consent-based product:
 privacy-respecting personalization, a first-run experience, a hardened security posture,
