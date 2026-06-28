@@ -684,7 +684,10 @@ export function MainApp({ session }) {
       </div>
 
       {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
-      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={effWeights} />}
+      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={effWeights}
+        memoryOn={consentState === "full"}
+        existingCategories={[...new Set([...syncedCategories, ...tasks.flatMap(taskCats)])].filter(Boolean)}
+        recentTaskTitles={tasks.filter(t => !t.done).slice(-20).map(t => t.title).filter(Boolean)} />}
       {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
       {showAnalytics && <Suspense fallback={null}><AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} /></Suspense>}
