@@ -22,9 +22,14 @@ const BY_CODE = {
 };
 
 // Keyword → friendly message for common, recognisable cases (checked before passthrough).
+// Order matters: the first match wins. Email-send failures are matched on their own so a
+// failed delivery (e.g. an unconfigured SMTP provider) never gets mislabelled as a captcha
+// problem — the two are unrelated and were being conflated.
 const BY_KEYWORD = [
+  [/error sending|sending (?:the )?(?:magic ?link|confirmation|recovery|sign[- ]?in|otp|email)|failed to send|unable to send|\bsmtp\b/i,
+    "We couldn't send the email right now. Please try again in a moment, or contact support if it keeps happening."],
   [/captcha/i, "Captcha check failed. Please complete it and try again."],
-  [/rate limit|too many/i, "Too many attempts. Please wait a moment and try again."],
+  [/rate limit|too many|after \d+ seconds/i, "Too many attempts. Please wait a moment and try again."],
   [/invalid login|invalid credentials/i, "Those sign-in details are not correct."],
   [/network|failed to fetch|load failed/i, "Network problem. Check your connection and try again."],
 ];
