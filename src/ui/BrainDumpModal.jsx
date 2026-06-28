@@ -39,7 +39,7 @@ function FeatureChip({ label, value, color, onClick }) {
 }
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, memoryOn = false, existingCategories = [], recentTaskTitles = [] }) {
+export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, existingCategories = [], recentTaskTitles = [] }) {
   const [dump, setDump] = useState("");
   const [loading, setLoading] = useState(false);
   const [parsed, setParsed] = useState(initialParsed); // initialParsed seeds the preview (gallery only)
@@ -58,21 +58,21 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
     const dumpId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
     dumpIdRef.current = dumpId;
 
-    // Cross-dump context (Memory on): let earlier dumps shape this one. We feed the user's
-    // existing categories (so the model REUSES "Sports" instead of inventing "Fitness") and
-    // their recent open tasks (so it doesn't recreate duplicates). It's runtime context like
-    // the date — not a change to the canonical prompt — so it stays prompt_version v3, and we
-    // stamp memory_context on the event so its effect is measurable.
-    const cats = memoryOn ? [...new Set((existingCategories || []).filter(Boolean))].slice(0, 30) : [];
-    const recent = memoryOn ? (recentTaskTitles || []).filter(Boolean).slice(0, 20) : [];
-    let memCtx = "";
-    if (cats.length) memCtx += `\n\nThe user already uses these categories — REUSE an existing one when a task fits rather than inventing a near-duplicate: ${cats.join(", ")}.`;
-    if (recent.length) memCtx += ` Their current open tasks (do not recreate items clearly already present; only add genuinely new ones): ${recent.join("; ")}.`;
-    const systemText = `${BRAIN_DUMP_SYSTEM}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.${memCtx}`;
+    // Cross-dump context: reuse the user's existing categories (so the model REUSES "Sports"
+    // instead of inventing "Fitness") and avoid duplicating their open tasks. This uses ONLY
+    // the user's own data to serve their own dump — that's providing the service, not training —
+    // so it runs for everyone, independent of the Memory/training opt-in. Runtime context like
+    // the date (canonical prompt unchanged → still prompt_version v3); stamped for measurement.
+    const cats = [...new Set((existingCategories || []).filter(Boolean))].slice(0, 30);
+    const recent = (recentTaskTitles || []).filter(Boolean).slice(0, 20);
+    let dumpCtx = "";
+    if (cats.length) dumpCtx += `\n\nThe user already uses these categories — REUSE an existing one when a task fits rather than inventing a near-duplicate: ${cats.join(", ")}.`;
+    if (recent.length) dumpCtx += ` Their current open tasks (do not recreate items clearly already present; only add genuinely new ones): ${recent.join("; ")}.`;
+    const systemText = `${BRAIN_DUMP_SYSTEM}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.${dumpCtx}`;
 
     // Principle 1 (log raw input) + 2 (version the generator).
     logEvent("brain_dump_created", null, { dump_id: dumpId, raw_text: dump, char_count: dump.length, input_method: "typed" });
-    logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS }, memory_context: memoryOn ? { categories: cats.length, tasks: recent.length } : null });
+    logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS }, dump_context: { categories: cats.length, tasks: recent.length } });
     const t0 = performance.now();
     try {
       // Call the server-side "brain-dump" edge function (which holds the Anthropic
