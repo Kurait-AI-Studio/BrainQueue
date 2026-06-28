@@ -64,7 +64,12 @@ const _outbox = createOutbox({
 });
 export const flushOutbox = () => _outbox.flush();
 
-export function logEvent(eventType, taskId = null, context = null) {
+// `source` marks where the data originated: "user" for first-party, user-authored content
+// (the default), or a provider id ("google" / "microsoft" / "provider") for data derived
+// from a third-party API. The training export keeps ONLY source:"user" records, so the
+// origin of every trained datum is provable — required by the privacy policy (§4) and by
+// Google's API policy. It lives inside the jsonb context, so no schema migration is needed.
+export function logEvent(eventType, taskId = null, context = null, source = "user") {
   if (!_userId) return;
   const now = new Date();
   let tz; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { tz = null; }
@@ -82,7 +87,7 @@ export function logEvent(eventType, taskId = null, context = null) {
     app_version: APP_VERSION,
     surface: _activeSurface,
     consent_state: _consentState,
-    context,                              // event-specific payload
+    context: { ...(context || {}), source }, // event payload + provenance tag
   };
   _outbox.enqueue(row);   // durable first — persisted before any send
   _outbox.flush();
