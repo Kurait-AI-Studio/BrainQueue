@@ -7,6 +7,53 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-06-28
+The release that turns the telemetry foundation into a real, consent-based product:
+privacy-respecting personalization, a first-run experience, a hardened security posture,
+and a much cheaper, smarter Brain Dump.
+
+> Requires applying Supabase migrations **0009** (daily Brain Dump quota) and **0010**
+> (`due_date` column + braindump-v3 prompt) in the SQL editor.
+
+### Added
+- **Memory (opt-in personalization).** An optional, versioned data-use consent with three
+  levels (Personalized / Standard / Minimal), mapped to the telemetry `consent_state`.
+  Memory on = BrainQueue learns from you; off = it stays generic. Reversible in Settings,
+  with a gentle in-app nudge.
+- **First-run onboarding.** Welcome → a demo brain dump → a simulated focus session with an
+  XP win → the Memory ask (two honest contrast cards), so new users see the value and make
+  an informed, free choice.
+- **Level 0 adaptation.** With Memory on, Do Now re-ranks toward the tasks you actually
+  complete (learned scoring weights), shown with a "Tuned to you" marker.
+- **Cross-dump memory.** Consecutive brain dumps build on each other — the model reuses your
+  existing categories and avoids recreating tasks you already have.
+- **Security.** Full HTTP security headers (CSP, HSTS, X-Frame-Options, nosniff, Referrer /
+  Permissions-Policy) on the app and landing; CAPTCHA (Cloudflare Turnstile) on magic-link
+  login; a server-authoritative daily Brain Dump cap; an edge-function CORS allowlist; CI
+  dependency scanning (Dependabot + `npm audit`).
+- **Telemetry capture.** `final_committed` now carries the committed result + a `_pid → task
+  id` map (a self-contained training pair); every event is tagged with its data `source`
+  (user vs provider); consent changes are recorded as immutable events. Plus a
+  de-identification helper, the no-Google-data-in-training rule, and a telemetry-change
+  checklist so capture and disclosure never drift.
+- **Blind model duel** (`eval/duel.*`) to compare extraction quality head-to-head, and legal
+  drafts (privacy policy with model-training consent, terms, CGV, mentions légales, cookie
+  notice) plus a branded magic-link email + SMTP guide.
+
+### Changed
+- **Brain Dump v3.** Categories are now *inferred* (gym → "Sports", a project → its name)
+  instead of a fixed list of 7; deadlines are extracted into a real `due_date`; surrounding
+  context is rewritten into clean task details. The preview shows labeled, color-coded,
+  editable features ("This week", "15 min") instead of cryptic "U4".
+- **Brain Dump model → GPT-4.1-mini** — about 11× cheaper than Sonnet 4.6 at near-identical
+  extraction quality.
+- **User-facing errors are humanized** — no raw SQL/DB text reaches the UI, and email-delivery
+  problems no longer masquerade as captcha errors.
+- **Telemetry `app_version`** is now stamped correctly (was `0.0.0`).
+
+### Fixed
+- Landing-page navigation was unreachable on mobile (no menu) — added a hamburger sheet.
+
 ## [2.2.2] — 2026-06-23
 A coherent look and a much faster first load, on top of a big internal cleanup.
 

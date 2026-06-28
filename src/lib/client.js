@@ -23,7 +23,7 @@ export async function signOut() {
 // The event envelope carries fields you can't reconstruct after the fact: a
 // monotonic per-user sequence, schema + app version, surface, consent, local tz.
 const SCHEMA_VERSION = 1;            // joins to schema_registry; bump with envelope changes
-const APP_VERSION = "0.0.0";         // attribute behavior to a build
+const APP_VERSION = "2.3.0";         // keep in sync with package.json on release (RELEASING.md)
 let _consentState = "product-only";  // full | product-only | none — tag every event
 let _activeSessionId = null;         // set while a focus session is live; groups its events
 let _activeSurface = "web";          // coarse screen hint (web/web:focus/web:braindump…)
