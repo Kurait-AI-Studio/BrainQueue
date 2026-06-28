@@ -15,6 +15,9 @@ import { BRAIN_DUMP_SYSTEM, TASK_LIST_SCHEMA, sanitizeTask } from "../src/brainD
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Match the app: inject today's date so the model resolves relative deadlines (v3).
+const SYSTEM = `${BRAIN_DUMP_SYSTEM}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.`;
+
 // The two contenders.
 const A = { id: "sonnet-4-6", label: "Claude Sonnet 4.6", provider: "anthropic", model: "claude-sonnet-4-6", price: { in: 3, out: 15 } };
 const B = { id: "gpt-4-1-mini", label: "GPT-4.1 mini", provider: "openai", model: "gpt-4.1-mini", price: { in: 0.4, out: 1.6 } };
@@ -36,7 +39,7 @@ async function callAnthropic(m, text) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: m.model, max_tokens: 8000, system: BRAIN_DUMP_SYSTEM, output_config: { format: { type: "json_schema", schema: TASK_LIST_SCHEMA } }, messages: [{ role: "user", content: text }] }),
+    body: JSON.stringify({ model: m.model, max_tokens: 8000, system: SYSTEM, output_config: { format: { type: "json_schema", schema: TASK_LIST_SCHEMA } }, messages: [{ role: "user", content: text }] }),
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(`HTTP ${res.status}: ${data?.error?.message || ""}`);
@@ -46,7 +49,7 @@ async function callOpenAI(m, text) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: JSON.stringify({ model: m.model, max_tokens: 8000, temperature: 0, response_format: { type: "json_schema", json_schema: { name: "task_list", strict: true, schema: TASK_LIST_SCHEMA } }, messages: [{ role: "system", content: BRAIN_DUMP_SYSTEM }, { role: "user", content: text }] }),
+    body: JSON.stringify({ model: m.model, max_tokens: 8000, temperature: 0, response_format: { type: "json_schema", json_schema: { name: "task_list", strict: true, schema: TASK_LIST_SCHEMA } }, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: text }] }),
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(`HTTP ${res.status}: ${data?.error?.message || ""}`);

@@ -52,8 +52,10 @@ let votes = JSON.parse(localStorage.getItem(VOTES_KEY) || "{}");
 const save = () => localStorage.setItem(VOTES_KEY, JSON.stringify(votes));
 
 function taskHTML(t) {
-  const c = CAT_COLOR[t.category] || "#9aa0aa";
-  return `<div class="t"><div>${escapeHtml(t.title)}</div><div class="meta"><span class="cat" style="background:${c}22;color:${c}">${t.category}</span> &nbsp; U${t.urgency} I${t.importance} E${t.effort} En${t.energy}${t.pleasure?` P${t.pleasure}`:''} · ~${t.est_minutes}m${t.ai_delegatable?' · AI':''}${t.multi_step?' · multi':''}</div></div>`;
+  const c = CAT_COLOR[t.category] || "#9aa0aa"; // inferred categories fall back to grey
+  const due = t.due_date ? ` · 📅 ${t.due_date}` : "";
+  const notes = t.notes ? `<div class="meta" style="font-style:italic;margin-top:3px;color:#7a7a82">${escapeHtml(t.notes)}</div>` : "";
+  return `<div class="t"><div>${escapeHtml(t.title)}</div><div class="meta"><span class="cat" style="background:${c}22;color:${c}">${escapeHtml(t.category)}</span> &nbsp; U${t.urgency} I${t.importance} E${t.effort} En${t.energy}${t.pleasure?` P${t.pleasure}`:''} · ~${t.est_minutes}m${due}${t.ai_delegatable?' · AI':''}${t.multi_step?' · multi':''}</div>${notes}</div>`;
 }
 function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
