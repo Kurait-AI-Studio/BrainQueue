@@ -71,6 +71,11 @@ applied <versions>` first. (0008 added the `event_id` unique index for idempoten
   `screenshots/`** (desktop + mobile) before calling it done.
 - **Never break the telemetry invariants:** `task_events` stays append-only; delivery stays
   durable (outbox + idempotent upsert); new envelope fields are reconstructable, not retrofitted.
+- **Changing telemetry = privacy/legal review.** Any new event type, `context` field, or
+  captured data must follow [`docs/telemetry-change-checklist.md`](docs/telemetry-change-checklist.md):
+  stamp the right `source`, keep `isTrainingEligible` + de-identification (`src/lib/deidentify.js`)
+  correct, **never let Google/Microsoft data into training**, and update the privacy policy.
+  Capture and disclosure must not drift apart.
 - **Commits:** Conventional Commits (`feat`/`fix`/`chore`/`refactor`/`docs`), short body,
   **no Co-Authored-By line**. Releases are tag-driven — see [`docs/RELEASING.md`](docs/RELEASING.md)
   (a `feat:` → MINOR; only `feat!:`/`BREAKING CHANGE:` → MAJOR).
@@ -80,6 +85,8 @@ applied <versions>` first. (0008 added the `event_id` unique index for idempoten
 
 ## Docs index
 - [`docs/telemetry-capture-spec.md`](docs/telemetry-capture-spec.md) — the capture principles (the moat spec).
+- [`docs/telemetry-change-checklist.md`](docs/telemetry-change-checklist.md) — pre-merge checklist when capture changes (consent, source, de-id, Google policy).
+- [`docs/legal/`](docs/legal/) — privacy policy (incl. §4 training consent), terms, CGV, mentions légales, cookie notice (drafts).
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the product end-to-end, screen by screen (`docs/workflow/*.png`).
 - [`docs/RELEASING.md`](docs/RELEASING.md) — versioning + release process (tag-triggered).
 - [`README.md`](README.md) — Brain Dump deep dive (prompt, schema, model choice).

@@ -627,7 +627,7 @@ export function MainApp({ session }) {
             <div style={{ maxWidth: "720px", margin: "0 auto" }}>
               <ConsentNudge
                 consent={consentState}
-                onEnable={() => { updateConsent("full"); setConsentLocal("full"); setToast({ type: "success", msg: "Self-learning on — BrainQueue will start adapting to you ✓" }); }}
+                onEnable={() => { updateConsent("full"); setConsentLocal("full"); setToast({ type: "success", msg: "Memory on — BrainQueue will start adapting to you ✓" }); }}
                 onOpenSettings={() => setShowSettings(true)}
                 onDismiss={() => setNudgeHidden(true)}
               />

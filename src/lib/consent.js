@@ -23,23 +23,26 @@ export const CONSENT_VERSION = "2026-06-28";
 export const DEFAULT_CONSENT = "product-only";
 
 // Shown in Settings. `train` marks the level that permits model training.
+// User-facing wording uses a warm "Memory" framing (BrainQueue remembers how you work).
+// The blurb MUST stay explicit that this includes using data to improve/train models —
+// a friendly name can't obscure the disclosure, or the consent stops being informed/valid.
 export const CONSENT_LEVELS = [
   {
     id: "full",
-    label: "Help improve BrainQueue",
-    blurb: "Use my data (de-identified) to personalize my experience and to train and improve BrainQueue's models.",
+    label: "Personalized memory",
+    blurb: "BrainQueue remembers how you work to tailor your plans and get better over time. Uses your activity (de-identified), including to train our models. Never your calendar data.",
     train: true,
   },
   {
     id: "product-only",
-    label: "Run the service only",
-    blurb: "Use my data only to operate BrainQueue for me. Do not use it to train models.",
+    label: "Service only",
+    blurb: "Run BrainQueue for me without learning from my data or training models.",
     train: false,
   },
   {
     id: "none",
     label: "Minimal",
-    blurb: "Collect only what is strictly necessary to run the app.",
+    blurb: "Collect only what's strictly necessary to run the app.",
     train: false,
   },
 ];

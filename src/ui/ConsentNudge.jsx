@@ -21,8 +21,8 @@ export function ConsentNudge({ consent, onEnable, onOpenSettings, onDismiss }) {
     >
       <span style={{ fontSize: "0.95rem", lineHeight: 1 }} aria-hidden>💤</span>
       <span style={{ flex: 1, minWidth: "200px", fontSize: "0.78rem", color: "#f0b4b4", lineHeight: 1.5 }}>
-        <strong style={{ color: "#ff9b9b" }}>Self-learning is off.</strong>{" "}
-        BrainQueue can't learn from you yet, so you're getting the generic version instead of one that adapts to how you actually work.
+        <strong style={{ color: "#ff9b9b" }}>Memory is off.</strong>{" "}
+        BrainQueue isn't learning how you work yet, so you're on the generic version instead of one that adapts to you.
       </span>
       <button
         onClick={onEnable}
@@ -39,7 +39,7 @@ export function ConsentNudge({ consent, onEnable, onOpenSettings, onDismiss }) {
           whiteSpace: "nowrap",
         }}
       >
-        Turn on learning
+        Turn on memory
       </button>
       <button
         onClick={onOpenSettings}
