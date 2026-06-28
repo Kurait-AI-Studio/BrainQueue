@@ -28,28 +28,30 @@ domain logic in `src/lib/`; database schema in `supabase/migrations/`.
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the product end to end, screen by screen.
 - [`docs/telemetry-capture-spec.md`](docs/telemetry-capture-spec.md) — the telemetry capture spec (the moat).
 - [`docs/RELEASING.md`](docs/RELEASING.md) — versioning + the tag-triggered release process.
-- [`CHANGELOG.md`](CHANGELOG.md) — what has shipped (current: **v2.2.0**).
+- [`CHANGELOG.md`](CHANGELOG.md) — what has shipped (current: **v2.3.0**).
 
 ## Brain Dump — how it works
 
 Source of truth for the feature lives in [`src/brainDumpSpec.js`](src/brainDumpSpec.js):
 the system prompt, the JSON schema, the model id, and a `sanitizeTask` clamp.
-The UI is `BrainDumpModal` in [`src/App.jsx`](src/App.jsx).
+The UI is `BrainDumpModal` in [`src/ui/BrainDumpModal.jsx`](src/ui/BrainDumpModal.jsx).
 
-Flow:
+Flow (Brain Dump **v3**):
 
 1. User pastes a brain dump (any format/language) and hits **Parse & classify**
    (or ⌘/Ctrl+Enter).
-2. The browser calls the Anthropic Messages API with the user's own key (from
-   Settings, stored in `localStorage`), using **structured outputs**
-   (`output_config.format` + a strict JSON schema) — so the response is
-   guaranteed-valid JSON, no regex scraping, no truncation surprises.
-3. Each task comes back with `category`, `urgency`, `importance`, `effort`,
-   `energy`, `notes`. `sanitizeTask` clamps anything out of range so a bad value
-   can't crash the UI.
-4. The preview is **editable** — fix a title, change the category, nudge any
-   score, or drop a task — then **Add**. Scores are recomputed locally by
-   `calcScore` with the user's weight settings.
+2. The browser sends the dump + prompt + JSON schema to the **`brain-dump` Supabase edge
+   function**, which calls the model **server-side** with the provider key — the key never
+   touches the browser. Default model **`gpt-4.1-mini`** (provider-aware; one-line switch).
+   **Structured outputs** guarantee valid JSON. Today's date and the user's existing
+   categories + recent tasks are injected, so deadlines resolve and dumps stay consistent.
+3. Each task comes back with an **inferred `category`** (free text — gym → "Sports"),
+   `urgency / importance / effort / energy`, an extracted **`due_date`**, clean rewritten
+   `notes`, plus `est_minutes / cognitive_load / ai_delegatable / multi_step`. `sanitizeTask`
+   clamps/repairs anything out of range.
+4. The preview is **editable** — labeled, color-coded feature chips ("This week", "15 min"),
+   a free-text category, a due-date picker, editable details — then **Add**. Scores recompute
+   locally via `calcScore` (adapted to you when **Memory** is on).
 
 To change the model, edit `BRAIN_DUMP_MODEL` in `src/brainDumpSpec.js`.
 
