@@ -1,0 +1,98 @@
+<!--
+  BrainQueue · branded Magic Link email (v2 — centered, premium, encoding-safe).
+  Paste into Supabase → Authentication → Email Templates → "Magic Link" (Source/HTML).
+  Subject:  Your BrainQueue sign-in link
+  Variable: {{ .ConfirmationURL }}
+
+  Notes:
+  - All non-ASCII glyphs use HTML entities (&rarr; &middot; &bull;) so they never
+    mojibake regardless of the charset the mail client assumes.
+  - Table-based layout + inline styles for broad email-client support (incl. Outlook).
+  - To change the SENDER from "Supabase Auth" to "BrainQueue", configure custom SMTP.
+-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0d;margin:0;padding:40px 16px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;">
+
+        <!-- card -->
+        <tr>
+          <td style="background-color:#121216;border:1px solid rgba(255,255,255,0.08);border-radius:22px;overflow:hidden;">
+
+            <!-- lime accent strip -->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td style="height:4px;line-height:4px;font-size:0;background-color:#bef24a;">&nbsp;</td></tr>
+            </table>
+
+            <!-- body -->
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="padding:40px 40px 8px 40px;">
+                  <div style="font-size:26px;font-weight:800;letter-spacing:-0.02em;color:#e8e8e8;">Brain<span style="color:#bef24a;">Queue</span></div>
+                  <div style="margin-top:8px;font-size:11px;font-weight:700;letter-spacing:0.18em;color:#52525b;text-transform:uppercase;">Clear your mind</div>
+                </td>
+              </tr>
+
+              <tr>
+                <td align="center" style="padding:24px 40px 0 40px;">
+                  <div style="font-size:23px;font-weight:700;color:#f4f4f5;line-height:1.3;">Your sign-in link is ready</div>
+                  <div style="margin-top:12px;font-size:15px;line-height:1.6;color:#a1a1aa;">
+                    Tap the button to sign in. For your security this link expires shortly and works only once.
+                  </div>
+                </td>
+              </tr>
+
+              <!-- secure pill -->
+              <tr>
+                <td align="center" style="padding:20px 40px 0 40px;">
+                  <span style="display:inline-block;background-color:rgba(190,242,74,0.10);border:1px solid rgba(190,242,74,0.30);border-radius:999px;padding:5px 12px;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#bef24a;text-transform:uppercase;">
+                    Secure one-time link
+                  </span>
+                </td>
+              </tr>
+
+              <!-- CTA -->
+              <tr>
+                <td align="center" style="padding:28px 40px 4px 40px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;background-color:#bef24a;color:#0a0a0d;font-size:15px;font-weight:700;text-decoration:none;padding:15px 36px;border-radius:12px;box-shadow:0 8px 26px rgba(190,242,74,0.22);">
+                    Sign in to BrainQueue&nbsp;&rarr;
+                  </a>
+                </td>
+              </tr>
+
+              <!-- fallback link -->
+              <tr>
+                <td align="center" style="padding:24px 40px 0 40px;">
+                  <div style="font-size:13px;line-height:1.6;color:#52525b;">Button not working? Paste this link into your browser:</div>
+                  <div style="margin-top:10px;background-color:#0d0d10;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px 14px;font-family:'SFMono-Regular',Consolas,monospace;font-size:12px;line-height:1.5;color:#8b8b93;word-break:break-all;">
+                    {{ .ConfirmationURL }}
+                  </div>
+                </td>
+              </tr>
+
+              <!-- divider -->
+              <tr>
+                <td style="padding:28px 40px 0 40px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:1px;line-height:1px;font-size:0;background-color:rgba(255,255,255,0.07);">&nbsp;</td></tr></table>
+                </td>
+              </tr>
+
+              <!-- footer note -->
+              <tr>
+                <td align="center" style="padding:20px 40px 36px 40px;">
+                  <div style="font-size:12px;line-height:1.6;color:#52525b;">
+                    You're receiving this because someone entered this email to sign in to BrainQueue. If it wasn't you, you can safely ignore this message. No account changes were made.
+                  </div>
+                  <div style="margin-top:14px;font-size:11px;color:#3f3f46;">
+                    BrainQueue &middot; clear your mind, one task at a time
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
