@@ -57,9 +57,10 @@ export const taskCats = (t) => (t.categories?.length ? t.categories : (t.categor
 export const allCategories = (custom = []) => [...CATEGORIES, ...custom.filter(c => !CATEGORIES.includes(c))];
 
 // ─── Gamification: XP + levels ───────────────────────────────────────────────
-// XP rewards harder, higher-stakes tasks (urgency/importance/effort/energy) and
-// gives an on-time bonus when a task is finished within the window its urgency
-// implies — so "time taken" matters too.
+// XP rewards harder, higher-stakes tasks (urgency/importance/effort/energy), an on-time
+// bonus, and a "pushed through" bonus for finishing a LONG task you did NOT enjoy. For ADHD,
+// the dreaded heavy tasks are exactly where avoidance hits hardest — so doing one deserves
+// the biggest reward. Division of labour: pleasure helps you *start*; XP rewards the grind.
 export const URGENCY_TARGET_HRS = { 1: 336, 2: 168, 3: 72, 4: 24, 5: 8 };
 export function taskXP(task) {
   const diff = (task.urgency || 0) + (task.importance || 0) + (task.effort || 0) + (task.energy || 0); // 4..20
@@ -68,6 +69,10 @@ export function taskXP(task) {
     const hrs = (new Date(task.doneAt) - new Date(task.addedAt)) / 3.6e6;
     if (hrs <= (URGENCY_TARGET_HRS[task.urgency] ?? 72)) xp += 15; // on-time bonus
   }
+  // Resistance bonus: a heavy task (effort >= 3) you found unpleasant (pleasure <= 2). The
+  // lower the pleasure and the longer the task, the bigger the reward for overcoming avoidance.
+  const pleasure = task.pleasure ?? 3, effort = task.effort || 0;
+  if (pleasure <= 2 && effort >= 3) xp += (3 - pleasure) * effort * 4;
   return Math.round(xp);
 }
 export const totalXP = (tasks) => tasks.filter(t => t.done).reduce((s, t) => s + taskXP(t), 0);
