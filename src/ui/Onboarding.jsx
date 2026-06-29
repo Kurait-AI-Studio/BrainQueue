@@ -181,25 +181,32 @@ function SessionDemo({ onNext }) {
 }
 
 function MemoryAsk({ onChoose }) {
-  const Card = ({ id, title, points, recommended, accent, fine }) => (
-    <button onClick={() => onChoose(id)} style={{
-      ...glassStrong, borderRadius: 18, padding: "1.3rem 1.2rem", textAlign: "left", cursor: "pointer", flex: 1, minWidth: 200,
-      border: `1px solid ${recommended ? "#bef24a66" : "rgba(255,255,255,0.08)"}`, position: "relative", transition: "transform 0.15s, border-color 0.15s",
-    }}
-      onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-3px)")}
-      onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}>
-      {recommended && <span style={{ position: "absolute", top: -10, left: 16, background: "#bef24a", color: "#0a0a0d", fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", borderRadius: 6, padding: "2px 7px" }}>Recommended</span>}
-      <div style={{ fontSize: "1.05rem", fontWeight: 800, color: accent, marginBottom: "0.7rem" }}>{title}</div>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {points.map((p) => (
-          <li key={p} style={{ fontSize: "0.78rem", color: "#bcbcc6", lineHeight: 1.5, display: "flex", gap: 7 }}>
-            <span style={{ color: accent }}>{recommended ? "✦" : "·"}</span>{p}
-          </li>
-        ))}
-      </ul>
-      {fine && <p style={{ fontSize: "0.66rem", color: "#5a5a64", lineHeight: 1.5, marginTop: "0.9rem" }}>{fine}</p>}
-    </button>
-  );
+  const [selected, setSelected] = useState(null); // pick a card, THEN confirm with the button
+  const Card = ({ id, title, points, recommended, accent, fine }) => {
+    const isSel = selected === id;
+    return (
+      <button onClick={() => setSelected(id)} aria-pressed={isSel} style={{
+        ...glassStrong, borderRadius: 18, padding: "1.3rem 1.2rem", textAlign: "left", cursor: "pointer", flex: 1, minWidth: 200,
+        border: `1px solid ${isSel ? accent : (recommended ? "#bef24a66" : "rgba(255,255,255,0.08)")}`,
+        boxShadow: isSel ? `0 0 0 2px ${accent}` : "none",
+        position: "relative", transition: "transform 0.15s, border-color 0.15s, box-shadow 0.15s",
+      }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-3px)")}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}>
+        {recommended && <span style={{ position: "absolute", top: -10, left: 16, background: "#bef24a", color: "#0a0a0d", fontSize: "0.6rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", borderRadius: 6, padding: "2px 7px" }}>Recommended</span>}
+        {isSel && <span style={{ position: "absolute", top: 12, right: 12, width: 20, height: 20, borderRadius: 99, background: accent, color: "#0a0a0d", display: "grid", placeItems: "center", fontSize: "0.72rem", fontWeight: 800 }}>✓</span>}
+        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: accent, marginBottom: "0.7rem" }}>{title}</div>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {points.map((p) => (
+            <li key={p} style={{ fontSize: "0.78rem", color: "#bcbcc6", lineHeight: 1.5, display: "flex", gap: 7 }}>
+              <span style={{ color: accent }}>{recommended ? "✦" : "·"}</span>{p}
+            </li>
+          ))}
+        </ul>
+        {fine && <p style={{ fontSize: "0.66rem", color: "#5a5a64", lineHeight: 1.5, marginTop: "0.9rem" }}>{fine}</p>}
+      </button>
+    );
+  };
 
   return (
     <div>
@@ -214,7 +221,12 @@ function MemoryAsk({ onChoose }) {
         <Card id="product-only" accent="#cfcfd6" title="Standard"
           points={["A great task manager", "No learning from your data", "Same for everyone"]} />
       </div>
-      <p style={{ color: "#444", fontSize: "0.72rem", textAlign: "center", marginTop: "1.3rem" }}>You can change this anytime in Settings → Memory.</p>
+      <p style={{ color: "#444", fontSize: "0.72rem", textAlign: "center", marginTop: "1.1rem" }}>You can change this anytime in Settings → Memory.</p>
+      <div style={{ textAlign: "center", marginTop: "1.2rem" }}>
+        <GlassButton onClick={() => selected && onChoose(selected)} disabled={!selected} accent="#bef24a" style={{ padding: "0.85rem 2rem", opacity: selected ? 1 : 0.5 }}>
+          {selected === "full" ? "Turn on Memory →" : selected === "product-only" ? "Continue without Memory →" : "Select an option to continue"}
+        </GlassButton>
+      </div>
     </div>
   );
 }
