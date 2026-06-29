@@ -9,7 +9,7 @@ import { getConsentState, updateConsent } from "../lib/client";
 
 // Settings: score-weight sliders + the weekly-review tone. (Brain Dump runs through a
 // server-side edge function now, so there's no user-facing API key.)
-export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
+export function SettingsModal({ weights, reviewTone, onSave, onClose, onReplayOnboarding }) {
   const [w, setW] = useState({ ...DEFAULT_WEIGHTS, ...(weights || {}) });
   const [tone, setTone] = useState(reviewTone || DEFAULT_REVIEW_TONE);
   const [consent, setConsent] = useState(getConsentState());
@@ -103,6 +103,16 @@ export function SettingsModal({ weights, reviewTone, onSave, onClose }) {
             })}
           </div>
         </div>
+
+        {onReplayOnboarding && (
+          <button onClick={onReplayOnboarding} style={{
+            background: "none", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px",
+            color: "#555", fontSize: "0.72rem", cursor: "pointer", padding: "0.45rem 0.9rem", marginBottom: "1.2rem",
+            fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", transition: "color 0.15s",
+          }} onMouseEnter={e => e.target.style.color = "#aaa"} onMouseLeave={e => e.target.style.color = "#555"}>
+            ↺ Replay onboarding
+          </button>
+        )}
 
         <GlassButton onClick={() => { onSave({ weights: w, reviewTone: tone }); onClose(); }} accent="#bef24a" style={{ width: "100%", padding: "0.9rem" }}>Save →</GlassButton>
       </div>

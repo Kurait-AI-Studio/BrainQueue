@@ -683,7 +683,9 @@ export function MainApp({ session }) {
         </div>
       </div>
 
-      {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)} onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
+      {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)}
+        onReplayOnboarding={() => { try { localStorage.removeItem(`bq_onboarded_${userId}`); } catch { /* ignore */ } setShowSettings(false); setShowOnboarding(true); }}
+        onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
       {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={effWeights}
         existingCategories={[...new Set([...syncedCategories, ...tasks.flatMap(taskCats)])].filter(Boolean)}
         recentTaskTitles={tasks.filter(t => !t.done).slice(-20).map(t => t.title).filter(Boolean)} />}
