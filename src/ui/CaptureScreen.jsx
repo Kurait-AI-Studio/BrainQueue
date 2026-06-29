@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { glass, glassStrong } from "./tokens";
 import { GlassButton } from "./GlassButton";
+import { findSimilar } from "../lib/similar";
 
 const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
 const timeAgo = (iso) => {
@@ -40,6 +41,14 @@ export function CaptureScreen({ captures = [], onCapture, onProcess, onDelete, o
         <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus placeholder={"Everything on your mind right now…"}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(true); }}
           style={{ width: "100%", minHeight: 150, ...glass, borderRadius: 12, padding: "1rem", color: "#ddd", fontSize: "0.9rem", fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+        {(() => {
+          const dup = text.trim().length > 8 ? findSimilar(text, captures, 0.45) : null;
+          return dup ? (
+            <p style={{ fontSize: "0.72rem", color: "#ff9b54", marginTop: "0.6rem", display: "flex", gap: 6 }}>
+              <span>⚠️</span><span>Similar to something you captured {timeAgo(dup.match.createdAt)}. Capture anyway, or process that one instead.</span>
+            </p>
+          ) : null;
+        })()}
         <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.8rem", flexWrap: "wrap" }}>
           <GlassButton onClick={() => save(false)} disabled={!text.trim()} style={{ flex: 1, minWidth: 140, opacity: text.trim() ? 1 : 0.5 }}>Capture &amp; keep</GlassButton>
           <GlassButton onClick={() => save(true)} disabled={!text.trim()} accent="#bef24a" style={{ flex: 1, minWidth: 140, opacity: text.trim() ? 1 : 0.5 }}>Capture &amp; process now →</GlassButton>
