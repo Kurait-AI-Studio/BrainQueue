@@ -39,8 +39,8 @@ function FeatureChip({ label, value, color, onClick }) {
 }
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, existingCategories = [], recentTaskTitles = [] }) {
-  const [dump, setDump] = useState("");
+export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, initialDump = "", existingCategories = [], recentTaskTitles = [] }) {
+  const [dump, setDump] = useState(initialDump); // pre-filled when processing a saved capture
   const [loading, setLoading] = useState(false);
   const [parsed, setParsed] = useState(initialParsed); // initialParsed seeds the preview (gallery only)
   const [error, setError] = useState(null);

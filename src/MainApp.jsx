@@ -5,6 +5,7 @@ import { recordSetClear, celebrationTitle } from "./lib/rewards";
 import { getSupabase, getUserId, setActiveUser, setConsentState, getConsentState, updateConsent, setActiveSessionId, setSurface, logEvent, flushOutbox, insertSession, finalizeSession, signOut } from "./lib/client";
 import { ConsentNudge } from "./ui/ConsentNudge";
 import { Onboarding } from "./ui/Onboarding";
+import { CaptureScreen } from "./ui/CaptureScreen";
 import { FocusMode } from "./ui/FocusMode";
 import { BrainDumpModal } from "./ui/BrainDumpModal";
 import { WeeklyReviewModal } from "./ui/WeeklyReviewModal";
@@ -218,9 +219,12 @@ export function MainApp({ session }) {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem(`bq_onboarded_${userId}`); } catch { return false; }
   });
+  const [showCapture, setShowCapture] = useState(false);
+  const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing a capture
+  const [processingCaptureId, setProcessingCaptureId] = useState(null);
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
-  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE } = state;
+  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE, captures = [] } = state;
   // Level 0 adaptation: when Memory is on, nudge the scoring weights toward what this user
   // actually completes. `weights` stays the user's explicit base (Settings); `effWeights`
   // is what ranking/scoring use. Off = generic, so the Memory promise stays honest.
@@ -241,6 +245,13 @@ export function MainApp({ session }) {
   }, [customCategories, tasks]);
 
   const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(userId, n); return n; });
+  // Capture inbox: raw, unprocessed notes saved for later (persisted in local state).
+  const addCapture = (text) => {
+    const cap = { id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()), text, createdAt: new Date().toISOString() };
+    setState(s => { const n = { ...s, captures: [cap, ...(s.captures || [])] }; saveState(userId, n); return n; });
+    return cap;
+  };
+  const removeCapture = (id) => setState(s => { const n = { ...s, captures: (s.captures || []).filter(c => c.id !== id) }; saveState(userId, n); return n; });
 
   // On mount: fetch this user's remote tasks, merge with local, then subscribe to
   // realtime changes scoped to their rows.
@@ -579,10 +590,11 @@ export function MainApp({ session }) {
         <div style={{ position: "absolute", bottom: "-10%", right: "-5%", width: "500px", height: "500px", borderRadius: "50%", background: "radial-gradient(circle, rgba(196,123,255,0.05) 0%, transparent 70%)" }} />
       </div>
 
-      <AppSidebar session={session} tasks={tasks} active="tasks" open={sidebarOpen} onClose={() => setSidebarOpen(false)}
-        onAddTask={() => setShowAdd(true)} onSignOut={() => signOut()}
+      <AppSidebar session={session} tasks={tasks} active={showCapture ? "capture" : "tasks"} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        onAddTask={() => setShowAdd(true)} onSignOut={() => signOut()} pendingCaptures={captures.length}
         onNav={(id) => {
-          if (id === "focus") setShowSessionSetup(true);
+          if (id === "capture") setShowCapture(true);
+          else if (id === "focus") setShowSessionSetup(true);
           else if (id === "tasks") setView(3);
           else if (id === "analytics") setShowAnalytics(true);
           else if (id === "rewards") setShowReview(true);
@@ -686,9 +698,15 @@ export function MainApp({ session }) {
       {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)}
         onReplayOnboarding={() => { try { localStorage.removeItem(`bq_onboarded_${userId}`); } catch { /* ignore */ } setShowSettings(false); setShowOnboarding(true); }}
         onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
-      {showDump && <BrainDumpModal onClose={() => setShowDump(false)} onTasksAdded={addBulk} weights={effWeights}
+      {showDump && <BrainDumpModal initialDump={dumpSeed}
+        onClose={() => { setShowDump(false); setDumpSeed(""); setProcessingCaptureId(null); }}
+        onTasksAdded={(t) => { addBulk(t); if (processingCaptureId) removeCapture(processingCaptureId); }}
+        weights={effWeights}
         existingCategories={[...new Set([...syncedCategories, ...tasks.flatMap(taskCats)])].filter(Boolean)}
         recentTaskTitles={tasks.filter(t => !t.done).slice(-20).map(t => t.title).filter(Boolean)} />}
+      {showCapture && <CaptureScreen captures={captures} onCapture={addCapture} onDelete={removeCapture}
+        onProcess={(cap) => { setDumpSeed(cap.text); setProcessingCaptureId(cap.id); setShowCapture(false); setShowDump(true); }}
+        onClose={() => setShowCapture(false)} />}
       {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}
       {showAnalytics && <Suspense fallback={null}><AnalyticsModal tasks={tasks} customCategories={syncedCategories} onClose={() => setShowAnalytics(false)} /></Suspense>}
@@ -720,6 +738,7 @@ export function MainApp({ session }) {
         // the resulting consent_state, since updateConsent ran first).
         logEvent("onboarding_completed", null, { memory: choice || "skipped", memory_on: choice === "full", consent_state: getConsentState() });
         setShowOnboarding(false);
+        setShowCapture(true); // land in the Capture inbox — invite to capture, no popup
       }} />}
     </>
   );

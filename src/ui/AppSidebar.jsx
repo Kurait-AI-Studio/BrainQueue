@@ -8,6 +8,7 @@ const BORDER = "rgba(255,255,255,0.06)";
 const GREEN = "#bef24a", TXT = "#ededf0", MUTE = "#83838f", FAINT = "#55555f";
 
 const NAV = [
+  { id: "capture", icon: "📥", label: "Capture" },
   { id: "focus", icon: "🎯", label: "Focus Mode" },
   { id: "tasks", icon: "📋", label: "All Tasks" },
   { id: "analytics", icon: "📊", label: "Analytics" },
@@ -16,7 +17,7 @@ const NAV = [
 ];
 const NAV_IDLE = "#b6b6c2"; // clearer than the dim grey for inactive items
 
-export function AppSidebar({ session, tasks = [], active = "tasks", open, onClose, onNav, onAddTask, onSignOut }) {
+export function AppSidebar({ session, tasks = [], active = "tasks", open, onClose, onNav, onAddTask, onSignOut, pendingCaptures = 0 }) {
   const lv = levelForXp(totalXP(tasks));
   const name = session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "You";
   const initial = name[0]?.toUpperCase() || "Y";
@@ -43,6 +44,9 @@ export function AppSidebar({ session, tasks = [], active = "tasks", open, onClos
               }}>
                 {on && <span style={{ position: "absolute", left: -9, top: "50%", transform: "translateY(-50%)", width: 3, height: 20, borderRadius: 2, background: GREEN }} />}
                 <span style={{ fontSize: "1.05rem", width: 20, textAlign: "center" }}>{n.icon}</span>{n.label}
+                {n.id === "capture" && pendingCaptures > 0 && (
+                  <span style={{ marginLeft: "auto", background: GREEN, color: "#0a0a0d", fontSize: "0.62rem", fontWeight: 800, borderRadius: 99, padding: "1px 7px", lineHeight: 1.4 }}>{pendingCaptures}</span>
+                )}
               </div>
             );
           })}
