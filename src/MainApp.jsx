@@ -716,7 +716,9 @@ export function MainApp({ session }) {
       {showOnboarding && <Onboarding onComplete={(choice) => {
         try { localStorage.setItem(`bq_onboarded_${userId}`, "1"); } catch { /* best effort */ }
         if (choice) { updateConsent(choice); setConsentLocal(choice); }
-        logEvent("onboarding_completed", null, { memory: choice || "skipped" });
+        // Log the explicit Memory choice + whether it's on (the event envelope also carries
+        // the resulting consent_state, since updateConsent ran first).
+        logEvent("onboarding_completed", null, { memory: choice || "skipped", memory_on: choice === "full", consent_state: getConsentState() });
         setShowOnboarding(false);
       }} />}
     </>
