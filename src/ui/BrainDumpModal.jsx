@@ -8,6 +8,7 @@ import { TierBadge } from "./TierBadge";
 import { getSupabase, logEvent, setSurface } from "../lib/client";
 import { humanizeError } from "../lib/errors";
 import { CAT_ACCENT, calcScore, URGENCY_META, IMPORTANCE_LABELS, ENERGY_LABELS, EFFORT_LABELS } from "../lib/tasks";
+import { findSimilar } from "../lib/similar";
 import {
   CATEGORIES, BRAIN_DUMP_MODEL, BRAIN_DUMP_MODELS, BRAIN_DUMP_PROVIDER,
   BRAIN_DUMP_PROMPT_VERSION, BRAIN_DUMP_MAX_TOKENS, BRAIN_DUMP_SYSTEM,
@@ -39,7 +40,7 @@ function FeatureChip({ label, value, color, onClick }) {
 }
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, initialDump = "", existingCategories = [], recentTaskTitles = [] }) {
+export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, initialDump = "", captureId = null, existingCategories = [], existingTaskTitles = [] }) {
   const [dump, setDump] = useState(initialDump); // pre-filled when processing a saved capture
   const [loading, setLoading] = useState(false);
   const [parsed, setParsed] = useState(initialParsed); // initialParsed seeds the preview (gallery only)
@@ -64,15 +65,15 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
     // so it runs for everyone, independent of the Memory/training opt-in. Runtime context like
     // the date (canonical prompt unchanged → still prompt_version v3); stamped for measurement.
     const cats = [...new Set((existingCategories || []).filter(Boolean))].slice(0, 30);
-    const recent = (recentTaskTitles || []).filter(Boolean).slice(0, 20);
+    const recent = (existingTaskTitles || []).filter(Boolean).slice(0, 20);
     let dumpCtx = "";
     if (cats.length) dumpCtx += `\n\nThe user already uses these categories — REUSE an existing one when a task fits rather than inventing a near-duplicate: ${cats.join(", ")}.`;
     if (recent.length) dumpCtx += ` Their current open tasks (do not recreate items clearly already present; only add genuinely new ones): ${recent.join("; ")}.`;
     const systemText = `${BRAIN_DUMP_SYSTEM}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.${dumpCtx}`;
 
     // Principle 1 (log raw input) + 2 (version the generator).
-    logEvent("brain_dump_created", null, { dump_id: dumpId, raw_text: dump, char_count: dump.length, input_method: "typed" });
-    logEvent("parse_requested", null, { dump_id: dumpId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS }, dump_context: { categories: cats.length, tasks: recent.length } });
+    logEvent("brain_dump_created", null, { dump_id: dumpId, capture_id: captureId, raw_text: dump, char_count: dump.length, input_method: captureId ? "capture" : "typed" });
+    logEvent("parse_requested", null, { dump_id: dumpId, capture_id: captureId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS }, dump_context: { categories: cats.length, tasks: recent.length } });
     const t0 = performance.now();
     try {
       // Call the server-side "brain-dump" edge function (which holds the Anthropic
@@ -116,7 +117,11 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
       const tasks = (result.tasks || []).map(sanitizeTask);
       if (!tasks.length) throw new Error("No actionable tasks found in that dump.");
       // Stable per-task ref so edits/removals stay matched to the original across the diff.
-      const withPid = tasks.map((t, i) => ({ ...t, _pid: `${dumpId}:${i}` }));
+      // Also flag near-duplicates of the user's existing open tasks (warn, don't block).
+      const withPid = tasks.map((t, i) => {
+        const sim = findSimilar(t.title, existingTaskTitles, 0.5);
+        return { ...t, _pid: `${dumpId}:${i}`, _dup: sim ? (typeof sim.match === "string" ? sim.match : sim.match.title) : null };
+      });
       // Principle 1: the raw model output is irreplaceable. Estimate cost from usage,
       // priced per the chosen model (the edge function normalises every provider's
       // token counts into input_tokens / output_tokens, so this is provider-agnostic).
@@ -176,7 +181,7 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
       }
     }
     logEvent("final_committed", null, {
-      dump_id: dumpId, n_tasks: parsed.length, n_edits: nEdits, n_removed: nRemoved, n_accepted: nAccepted,
+      dump_id: dumpId, capture_id: captureId, n_tasks: parsed.length, n_edits: nEdits, n_removed: nRemoved, n_accepted: nAccepted,
       edit_types: editTypes, time_to_commit_ms: Math.round(performance.now() - parsedAtRef.current),
       final_tasks: finalTasks,   // the committed v_final — the supervised label, read directly (no edit replay)
       task_id_map: idMap,        // _pid → committed task id: joins this generation to the task's later outcome
@@ -193,7 +198,7 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
       const id = baseId + i;
       idMap[t._pid] = id;
       const task = { ...t, id, done: false, addedAt: now, doneAt: null };
-      delete task._pid;   // strip the internal ref before the task enters the app/db
+      delete task._pid; delete task._dup;   // strip internal refs before the task enters the app/db
       return task;
     });
     try { logCorrections(idMap, committed); } catch { /* telemetry must never block the commit */ }
@@ -225,6 +230,12 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
         ) : (
           <>
             <p style={{ color: "#555", fontSize: "0.82rem", marginBottom: "1.2rem" }}>Found <strong style={{ color: "#bef24a" }}>{parsed.length} task{parsed.length === 1 ? "" : "s"}</strong>. Edit anything, then add.</p>
+            {parsed.some(t => t._dup) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,155,84,0.08)", border: "1px solid rgba(255,155,84,0.3)", borderRadius: 10, padding: "0.6rem 0.85rem", marginBottom: "1rem" }}>
+                <span style={{ fontSize: "0.95rem" }}>⚠️</span>
+                <span style={{ fontSize: "0.76rem", color: "#f0b486", lineHeight: 1.5 }}>{parsed.filter(t => t._dup).length} of these look similar to tasks you already have — they're flagged below. Remove any you don't need before adding.</span>
+              </div>
+            )}
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "1.5rem" }}>
               {parsed.map((t, i) => {
                 const acc = CAT_ACCENT(t.category);
@@ -238,6 +249,11 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
                         style={{ background: "none", border: "none", color: "#2a2a2a", cursor: "pointer", fontSize: "0.85rem" }}
                         onMouseEnter={e => e.target.style.color = "#ef4444"} onMouseLeave={e => e.target.style.color = "#2a2a2a"}>🗑</button>
                     </div>
+                    {t._dup && (
+                      <div style={{ fontSize: "0.68rem", color: "#ff9b54", marginTop: "0.45rem", display: "flex", gap: 5, alignItems: "center" }}>
+                        <span>⚠️</span><span>Looks like an existing task: “{t._dup}”. Remove if it's a duplicate.</span>
+                      </div>
+                    )}
                     {/* inferred, editable category (free text) + due date */}
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.6rem", flexWrap: "wrap" }}>
                       <span style={{ width: 8, height: 8, borderRadius: 99, background: acc, flexShrink: 0 }} />

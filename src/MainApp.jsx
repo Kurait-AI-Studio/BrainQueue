@@ -157,6 +157,33 @@ async function deleteRemoteTask(id) {
   if (error) console.error("Supabase delete:", error);
 }
 
+// ── Capture inbox sync (best-effort; the inbox works locally if migration 0011 is pending) ──
+async function fetchRemoteCaptures(userId) {
+  const sb = getSupabase();
+  if (!sb) return null;
+  const { data, error } = await sb.from("captures").select("*").eq("user_id", userId).eq("processed", false).order("created_at", { ascending: false });
+  if (error) { console.warn("captures fetch:", error.message); return null; }
+  return data.map(r => ({ id: r.id, text: r.text, createdAt: r.created_at }));
+}
+async function insertRemoteCapture(cap) {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { error } = await sb.from("captures").insert({ id: cap.id, user_id: getUserId(), text: cap.text, created_at: cap.createdAt });
+  if (error) console.warn("captures insert:", error.message);
+}
+async function deleteRemoteCapture(id) {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { error } = await sb.from("captures").delete().eq("id", id);
+  if (error) console.warn("captures delete:", error.message);
+}
+async function markRemoteCaptureProcessed(id) {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { error } = await sb.from("captures").update({ processed: true, processed_at: new Date().toISOString() }).eq("id", id);
+  if (error) console.warn("captures processed:", error.message);
+}
+
 
 // Merge: for each task, keep whichever version has the latest updated_at/addedAt
 function mergeTasks(local, remote) {
@@ -245,13 +272,22 @@ export function MainApp({ session }) {
   }, [customCategories, tasks]);
 
   const update = (patch) => setState(s => { const n = { ...s, ...patch }; saveState(userId, n); return n; });
-  // Capture inbox: raw, unprocessed notes saved for later (persisted in local state).
+  // Capture inbox: raw, unprocessed notes. Persisted locally AND synced to the captures table
+  // (best-effort — the inbox keeps working if migration 0011 isn't applied yet).
   const addCapture = (text) => {
     const cap = { id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()), text, createdAt: new Date().toISOString() };
     setState(s => { const n = { ...s, captures: [cap, ...(s.captures || [])] }; saveState(userId, n); return n; });
+    insertRemoteCapture(cap);
     return cap;
   };
-  const removeCapture = (id) => setState(s => { const n = { ...s, captures: (s.captures || []).filter(c => c.id !== id) }; saveState(userId, n); return n; });
+  const removeCapture = (id) => { // discard from the inbox
+    setState(s => { const n = { ...s, captures: (s.captures || []).filter(c => c.id !== id) }; saveState(userId, n); return n; });
+    deleteRemoteCapture(id);
+  };
+  const markCaptureDone = (id) => { // processed → leave the inbox, keep the row flagged processed
+    setState(s => { const n = { ...s, captures: (s.captures || []).filter(c => c.id !== id) }; saveState(userId, n); return n; });
+    markRemoteCaptureProcessed(id);
+  };
 
   // On mount: fetch this user's remote tasks, merge with local, then subscribe to
   // realtime changes scoped to their rows.
@@ -281,6 +317,20 @@ export function MainApp({ session }) {
         return n;
       });
       setSyncStatus("synced");
+    });
+
+    // 1b. Capture inbox: pull unprocessed captures from any device, push any local-only ones.
+    fetchRemoteCaptures(userId).then(remote => {
+      if (!remote) return;
+      setState(s => {
+        const byId = new Map((s.captures || []).map(c => [c.id, c]));
+        remote.forEach(c => byId.set(c.id, c));
+        const remoteIds = new Set(remote.map(c => c.id));
+        (s.captures || []).forEach(c => { if (!remoteIds.has(c.id)) insertRemoteCapture(c); });
+        const n = { ...s, captures: [...byId.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) };
+        saveState(userId, n);
+        return n;
+      });
     });
 
     // 2. Realtime subscription — INSERT/UPDATE/DELETE for this user, from any device
@@ -698,12 +748,12 @@ export function MainApp({ session }) {
       {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)}
         onReplayOnboarding={() => { try { localStorage.removeItem(`bq_onboarded_${userId}`); } catch { /* ignore */ } setShowSettings(false); setShowOnboarding(true); }}
         onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
-      {showDump && <BrainDumpModal initialDump={dumpSeed}
+      {showDump && <BrainDumpModal initialDump={dumpSeed} captureId={processingCaptureId}
         onClose={() => { setShowDump(false); setDumpSeed(""); setProcessingCaptureId(null); }}
-        onTasksAdded={(t) => { addBulk(t); if (processingCaptureId) removeCapture(processingCaptureId); }}
+        onTasksAdded={(t) => { addBulk(t); if (processingCaptureId) markCaptureDone(processingCaptureId); }}
         weights={effWeights}
         existingCategories={[...new Set([...syncedCategories, ...tasks.flatMap(taskCats)])].filter(Boolean)}
-        recentTaskTitles={tasks.filter(t => !t.done).slice(-20).map(t => t.title).filter(Boolean)} />}
+        existingTaskTitles={tasks.filter(t => !t.done).map(t => t.title).filter(Boolean)} />}
       {showCapture && <CaptureScreen captures={captures} onCapture={addCapture} onDelete={removeCapture}
         onProcess={(cap) => { setDumpSeed(cap.text); setProcessingCaptureId(cap.id); setShowCapture(false); setShowDump(true); }}
         onClose={() => setShowCapture(false)} />}
