@@ -249,6 +249,22 @@ export function MainApp({ session }) {
   const [showCapture, setShowCapture] = useState(false);
   const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing capture(s)
   const [processingCaptureIds, setProcessingCaptureIds] = useState([]); // captures being processed (1 or batch)
+  // Gentle reminder when a capture has sat unprocessed too long. Snoozes for a day on dismiss.
+  const STALE_DAYS = 3;
+  const [staleReminderHidden, setStaleReminderHidden] = useState(() => {
+    try { return Date.now() - (+localStorage.getItem(`bq_stale_snooze_${userId}`) || 0) < 86400000; } catch { return false; }
+  });
+  const dismissStale = () => { setStaleReminderHidden(true); try { localStorage.setItem(`bq_stale_snooze_${userId}`, String(Date.now())); } catch { /* ignore */ } };
+  const staleCapture = useMemo(() => {
+    const cutoff = Date.now() - STALE_DAYS * 86400000;
+    return [...(captures || [])].filter(c => new Date(c.createdAt).getTime() < cutoff)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0] || null;
+  }, [captures]);
+  const staleDays = staleCapture ? Math.floor((Date.now() - new Date(staleCapture.createdAt)) / 86400000) : 0;
+  useEffect(() => {
+    if (staleCapture && !staleReminderHidden) logEvent("stale_capture_reminder_shown", null, { capture_id: staleCapture.id, age_days: staleDays });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staleCapture?.id]);
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE, captures = [] } = state;
@@ -278,6 +294,9 @@ export function MainApp({ session }) {
     const cap = { id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()), text, createdAt: new Date().toISOString() };
     setState(s => { const n = { ...s, captures: [cap, ...(s.captures || [])] }; saveState(userId, n); return n; });
     insertRemoteCapture(cap);
+    // The event's date (event_at) marks when this dump was captured — used to nudge if it
+    // sits unprocessed too long, and as raw signal for the learning loop.
+    logEvent("capture_created", null, { capture_id: cap.id, char_count: text.length });
     return cap;
   };
   const removeCapture = (id) => { // discard from the inbox
@@ -781,6 +800,19 @@ export function MainApp({ session }) {
       <XpBurst burst={xpBurst} onDone={() => setXpBurst(null)} />
       <SetCelebration celebration={celebration} onDone={() => setCelebration(null)} />
       {toast && <Toast toast={toast} onDone={() => setToast(null)} />}
+      {staleCapture && !staleReminderHidden && !showCapture && !showDump && !showOnboarding && (
+        <div style={{ position: "fixed", left: 18, bottom: 18, zIndex: 200, maxWidth: 320, background: "#14141a", border: "1px solid rgba(190,242,74,0.22)", borderRadius: 14, padding: "0.85rem 0.95rem", boxShadow: "0 16px 40px rgba(0,0,0,0.5)", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", display: "flex", gap: 10, alignItems: "flex-start", animation: "task-enter 0.4s ease" }}>
+          <span style={{ fontSize: "1.05rem", lineHeight: 1 }}>💭</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "0.79rem", color: "#dcdce0", lineHeight: 1.5 }}>You captured something {staleDays} day{staleDays === 1 ? "" : "s"} ago. Sort it into tasks when you're ready — no rush.</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
+              <button onClick={() => { setShowCapture(true); setStaleReminderHidden(true); }} style={{ background: "#bef24a", border: "none", borderRadius: 8, padding: "0.38rem 0.8rem", color: "#0a0a0d", fontWeight: 700, fontSize: "0.74rem", cursor: "pointer", fontFamily: "inherit" }}>Open inbox →</button>
+              <button onClick={dismissStale} style={{ background: "none", border: "none", color: "#777", fontSize: "0.74rem", cursor: "pointer", fontFamily: "inherit" }}>Later</button>
+            </div>
+          </div>
+          <button onClick={dismissStale} aria-label="Dismiss" style={{ background: "none", border: "none", color: "#555", fontSize: "1rem", cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+      )}
       {showOnboarding && <Onboarding onComplete={(choice) => {
         try { localStorage.setItem(`bq_onboarded_${userId}`, "1"); } catch { /* best effort */ }
         if (choice) { updateConsent(choice); setConsentLocal(choice); }
