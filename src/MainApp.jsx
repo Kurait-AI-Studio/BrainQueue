@@ -247,8 +247,8 @@ export function MainApp({ session }) {
     try { return !localStorage.getItem(`bq_onboarded_${userId}`); } catch { return false; }
   });
   const [showCapture, setShowCapture] = useState(false);
-  const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing a capture
-  const [processingCaptureId, setProcessingCaptureId] = useState(null);
+  const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing capture(s)
+  const [processingCaptureIds, setProcessingCaptureIds] = useState([]); // captures being processed (1 or batch)
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE, captures = [] } = state;
@@ -748,14 +748,14 @@ export function MainApp({ session }) {
       {showSettings && <Suspense fallback={null}><SettingsModal weights={weights} reviewTone={reviewTone} onSave={(s) => update(s)}
         onReplayOnboarding={() => { try { localStorage.removeItem(`bq_onboarded_${userId}`); } catch { /* ignore */ } setShowSettings(false); setShowOnboarding(true); }}
         onClose={() => { setShowSettings(false); setConsentLocal(getConsentState()); }} /></Suspense>}
-      {showDump && <BrainDumpModal initialDump={dumpSeed} captureId={processingCaptureId}
-        onClose={() => { setShowDump(false); setDumpSeed(""); setProcessingCaptureId(null); }}
-        onTasksAdded={(t) => { addBulk(t); if (processingCaptureId) markCaptureDone(processingCaptureId); }}
+      {showDump && <BrainDumpModal initialDump={dumpSeed} captureIds={processingCaptureIds}
+        onClose={() => { setShowDump(false); setDumpSeed(""); setProcessingCaptureIds([]); }}
+        onTasksAdded={(t) => { addBulk(t); processingCaptureIds.forEach(markCaptureDone); }}
         weights={effWeights}
         existingCategories={[...new Set([...syncedCategories, ...tasks.flatMap(taskCats)])].filter(Boolean)}
         existingTaskTitles={tasks.filter(t => !t.done).map(t => t.title).filter(Boolean)} />}
       {showCapture && <CaptureScreen captures={captures} onCapture={addCapture} onDelete={removeCapture}
-        onProcess={(cap) => { setDumpSeed(cap.text); setProcessingCaptureId(cap.id); setShowCapture(false); setShowDump(true); }}
+        onProcessAll={(caps) => { setDumpSeed(caps.map(c => c.text).join("\n\n")); setProcessingCaptureIds(caps.map(c => c.id)); setShowCapture(false); setShowDump(true); }}
         onClose={() => setShowCapture(false)} />}
       {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}
       {scheduleTask && <ScheduleModal task={scheduleTask} session={session} onClose={() => setScheduleTask(null)} onResult={setToast} />}

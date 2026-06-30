@@ -40,7 +40,7 @@ function FeatureChip({ label, value, color, onClick }) {
 }
 const sameVal = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, initialDump = "", captureId = null, existingCategories = [], existingTaskTitles = [] }) {
+export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed = null, initialDump = "", captureIds = [], existingCategories = [], existingTaskTitles = [] }) {
   const [dump, setDump] = useState(initialDump); // pre-filled when processing a saved capture
   const [loading, setLoading] = useState(false);
   const [parsed, setParsed] = useState(initialParsed); // initialParsed seeds the preview (gallery only)
@@ -72,8 +72,9 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
     const systemText = `${BRAIN_DUMP_SYSTEM}\n\nToday's date is ${new Date().toISOString().slice(0, 10)}.${dumpCtx}`;
 
     // Principle 1 (log raw input) + 2 (version the generator).
-    logEvent("brain_dump_created", null, { dump_id: dumpId, capture_id: captureId, raw_text: dump, char_count: dump.length, input_method: captureId ? "capture" : "typed" });
-    logEvent("parse_requested", null, { dump_id: dumpId, capture_id: captureId, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS }, dump_context: { categories: cats.length, tasks: recent.length } });
+    const captureRef = captureIds.length ? captureIds : null;
+    logEvent("brain_dump_created", null, { dump_id: dumpId, capture_ids: captureRef, raw_text: dump, char_count: dump.length, input_method: captureRef ? (captureIds.length > 1 ? "capture_batch" : "capture") : "typed" });
+    logEvent("parse_requested", null, { dump_id: dumpId, capture_ids: captureRef, prompt_version: BRAIN_DUMP_PROMPT_VERSION, model_id: BRAIN_DUMP_MODEL, provider: BRAIN_DUMP_PROVIDER, params: { max_tokens: BRAIN_DUMP_MAX_TOKENS }, dump_context: { categories: cats.length, tasks: recent.length } });
     const t0 = performance.now();
     try {
       // Call the server-side "brain-dump" edge function (which holds the Anthropic
@@ -181,7 +182,7 @@ export function BrainDumpModal({ onClose, onTasksAdded, weights, initialParsed =
       }
     }
     logEvent("final_committed", null, {
-      dump_id: dumpId, capture_id: captureId, n_tasks: parsed.length, n_edits: nEdits, n_removed: nRemoved, n_accepted: nAccepted,
+      dump_id: dumpId, capture_ids: captureIds.length ? captureIds : null, n_tasks: parsed.length, n_edits: nEdits, n_removed: nRemoved, n_accepted: nAccepted,
       edit_types: editTypes, time_to_commit_ms: Math.round(performance.now() - parsedAtRef.current),
       final_tasks: finalTasks,   // the committed v_final — the supervised label, read directly (no edit replay)
       task_id_map: idMap,        // _pid → committed task id: joins this generation to the task's later outcome
