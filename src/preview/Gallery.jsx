@@ -86,7 +86,7 @@ export function Gallery() {
     { _pid: "d:2", title: "Draft the BrainQueue landing copy", category: "BrainQueue", urgency: 4, importance: 5, effort: 3, energy: 4, pleasure: 3, notes: "Lead with the ADHD angle and the Memory feature.", due_date: "2026-07-04", est_minutes: 90, cognitive_load: 4, ai_delegatable: true, multi_step: true },
   ]} />;
   if (_view === "onboarding") return <Onboarding onComplete={noop} />;
-  if (_view === "capture") return <CaptureScreen onCapture={() => ({ id: "x" })} onProcess={noop} onDelete={noop} onClose={noop} captures={[
+  if (_view === "capture") return <CaptureScreen onCapture={() => ({ id: "x" })} onProcessAll={noop} onDelete={noop} onClose={noop} captures={[
     { id: "c1", text: "call the dentist about the filling, also need to reschedule the team sync to thursday and buy a birthday gift for mom", createdAt: new Date(Date.now() - 12 * 60000).toISOString() },
     { id: "c2", text: "idea: add a weekly email digest. research competitors pricing. finish the Q3 report draft before friday", createdAt: new Date(Date.now() - 3 * 3600000).toISOString() },
   ]} />;
