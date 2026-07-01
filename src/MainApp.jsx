@@ -249,7 +249,18 @@ export function MainApp({ session }) {
   const [showCapture, setShowCapture] = useState(false);
   const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing capture(s)
   const [processingCaptureIds, setProcessingCaptureIds] = useState([]); // captures being processed (1 or batch)
+
+  const [state, setState] = useState(() => loadOrAdoptState(userId));
+  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE, captures = [] } = state;
+  // Level 0 adaptation: when Memory is on, nudge the scoring weights toward what this user
+  // actually completes. `weights` stays the user's explicit base (Settings); `effWeights`
+  // is what ranking/scoring use. Off = generic, so the Memory promise stays honest.
+  const { weights: effWeights, tuned: weightsTuned } = useMemo(
+    () => (consentState === "full" ? adaptWeights(tasks, weights) : { weights, tuned: false }),
+    [consentState, tasks, weights]
+  );
   // Gentle reminder when a capture has sat unprocessed too long. Snoozes for a day on dismiss.
+  // (Declared after `captures` above — it reads that value.)
   const STALE_DAYS = 3;
   const [staleReminderHidden, setStaleReminderHidden] = useState(() => {
     try { return Date.now() - (+localStorage.getItem(`bq_stale_snooze_${userId}`) || 0) < 86400000; } catch { return false; }
@@ -265,16 +276,6 @@ export function MainApp({ session }) {
     if (staleCapture && !staleReminderHidden) logEvent("stale_capture_reminder_shown", null, { capture_id: staleCapture.id, age_days: staleDays });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staleCapture?.id]);
-
-  const [state, setState] = useState(() => loadOrAdoptState(userId));
-  const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE, captures = [] } = state;
-  // Level 0 adaptation: when Memory is on, nudge the scoring weights toward what this user
-  // actually completes. `weights` stays the user's explicit base (Settings); `effWeights`
-  // is what ranking/scoring use. Off = generic, so the Memory promise stays honest.
-  const { weights: effWeights, tuned: weightsTuned } = useMemo(
-    () => (consentState === "full" ? adaptWeights(tasks, weights) : { weights, tuned: false }),
-    [consentState, tasks, weights]
-  );
   const tasksRef = useRef(tasks); tasksRef.current = tasks; // latest tasks for set-clear detection
   const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error
 
