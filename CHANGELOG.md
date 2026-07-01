@@ -7,6 +7,17 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+### Fixed
+- **Magic-link submit guard hardened.** The double-fire guard added for the
+  `timeout-or-duplicate` captcha error relied on React state, which a genuinely synchronous
+  double-dispatch (e.g. iOS Safari firing `touchend` + `click` for one tap) could still slip
+  past. Replaced with a `useRef` lock, which is synchronous and immune to render timing.
+- **Captcha-timeout errors no longer read as user error.** A `timeout-or-duplicate` response
+  is almost always Supabase's own outbound call to the captcha provider not completing in
+  time (a provider-side network/capacity issue — confirmed against a real incident on
+  status.supabase.com), not a real duplicate submission. The message now says plainly that
+  it isn't something the person did wrong, instead of a generic "Captcha check failed."
+
 ### Changed
 - **Cross-dump category consistency now runs for everyone**, not only with Memory on. It uses
   only your own data to serve your own dump (providing the service, not training), so it

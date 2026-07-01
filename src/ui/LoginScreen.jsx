@@ -1,7 +1,7 @@
 // The signed-out entry point: OAuth + email magic-link sign-in, and the splash
 // shown while the session is still resolving. Kept separate from the authed app so
 // it can load on its own (a logged-out visitor doesn't need the whole product).
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { glass, glassStrong } from "./tokens";
 import { useHover } from "./useHover";
 import { MouseGlow } from "./MouseGlow";
@@ -75,6 +75,7 @@ export function LoginScreen() {
   const [error, setError] = useState(null);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [captchaKey, setCaptchaKey] = useState(0); // bump to remount/reset the widget
+  const sendingRef = useRef(false); // synchronous lock — see note in magic()
   const configured = !!getSupabase();
   const captchaReady = !CAPTCHA_SITE_KEY || !!captchaToken; // no key configured -> no gate
 
@@ -89,12 +90,15 @@ export function LoginScreen() {
     // Guard against a double-fire (Enter key + button tap, or a fast double-tap on mobile):
     // Turnstile tokens are single-use, so two concurrent calls with the same token always
     // produce a "timeout-or-duplicate" captcha error on the second request — even on an
-    // otherwise valid, first-time attempt. The button already disables while busy; this
-    // makes `magic()` itself safe regardless of what triggers it (e.g. onKeyDown, which
-    // doesn't share the button's disabled condition).
-    if (busy) return;
+    // otherwise valid, first-time attempt. `busy` state alone isn't enough: on a genuinely
+    // synchronous double-dispatch (e.g. iOS Safari firing touchend + click for one tap),
+    // both calls can read the same pre-render `busy` value before React commits the first
+    // update. sendingRef is a plain mutable flag — set synchronously, visible instantly to
+    // any call sharing the ref, no render/commit cycle involved.
+    if (sendingRef.current) return;
     if (!email.trim()) return;
     if (CAPTCHA_SITE_KEY && !captchaToken) { setError("Please complete the captcha first."); return; }
+    sendingRef.current = true;
     setBusy("email"); setError(null);
     try { await signInWithEmail(email.trim(), captchaToken); setSent(true); }
     catch (e) {
@@ -102,6 +106,7 @@ export function LoginScreen() {
       // The token is single-use; reset the widget so the user can retry.
       setCaptchaToken(null); setCaptchaKey(k => k + 1);
     }
+    sendingRef.current = false;
     setBusy(null);
   };
 
