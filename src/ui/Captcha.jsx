@@ -45,7 +45,14 @@ export function Captcha({ provider = "turnstile", siteKey, onToken, onError }) {
             theme: "dark",
             callback: (t) => onToken?.(t),
             "expired-callback": () => onToken?.(null),
-            "error-callback": () => { onToken?.(null); onError?.("Captcha error, please retry."); },
+            // Cloudflare passes a specific error code (e.g. "110200" = domain not allowed for
+            // this sitekey). Surface it instead of a generic message — that code is the fastest
+            // way to pinpoint a misconfiguration. Reference: developers.cloudflare.com/turnstile/troubleshooting/client-side-errors/
+            "error-callback": (code) => {
+              onToken?.(null);
+              console.warn("[Turnstile error-callback] code:", code);
+              onError?.(`Captcha error (code ${code}). See developers.cloudflare.com/turnstile/troubleshooting/client-side-errors for what it means.`);
+            },
           });
         };
         tryRender();
