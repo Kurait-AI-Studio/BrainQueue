@@ -28,7 +28,6 @@ const BY_CODE = {
 const BY_KEYWORD = [
   [/error sending|sending (?:the )?(?:magic ?link|confirmation|recovery|sign[- ]?in|otp|email)|failed to send|unable to send|\bsmtp\b/i,
     "We couldn't send the email right now. Please try again in a moment, or contact support if it keeps happening."],
-  [/captcha/i, "Captcha check failed. Please complete it and try again."],
   [/rate limit|too many|after \d+ seconds/i, "Too many attempts. Please wait a moment and try again."],
   [/invalid login|invalid credentials/i, "Those sign-in details are not correct."],
   [/network|failed to fetch|load failed/i, "Network problem. Check your connection and try again."],
@@ -44,6 +43,17 @@ export function humanizeError(err, fallback = "Something went wrong. Please try 
 
   const msg = (typeof err === "string" ? err : err.message || "").trim();
   if (!msg) return fallback;
+
+  // Server-side captcha failures (Supabase↔provider verification, not the widget itself —
+  // see Captcha.jsx for the client-side error-callback path) carry a short, non-sensitive
+  // reason in parentheses, e.g. "captcha protection: request disallowed (invalid-input-response)".
+  // Surface that reason instead of a fully generic message: it's the difference between
+  // "something's wrong with captcha" and "the secret/sitekey pair is mismatched", which is
+  // undiagnosable without opening devtools otherwise.
+  if (/captcha/i.test(msg)) {
+    const reason = msg.match(/\(([^)]+)\)/)?.[1];
+    return reason ? `Captcha check failed: ${reason}. Please try again.` : "Captcha check failed. Please complete it and try again.";
+  }
 
   for (const [re, friendly] of BY_KEYWORD) if (re.test(msg)) return friendly;
   if (LEAKY.test(msg)) return fallback;   // looks like raw DB/internal output → hide it
