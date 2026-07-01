@@ -5,6 +5,7 @@
 // scrolling past the canvas, but still collapsed until tapped. Spacing follows the golden ratio.
 import { useMemo, useState } from "react";
 import { GlassButton } from "./GlassButton";
+import { useHover } from "./useHover";
 import { findSimilar } from "../lib/similar";
 
 const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
@@ -27,6 +28,23 @@ const timeAgo = (iso) => {
 const excerpt = (t, n = 70) => (t.length > n ? `${t.slice(0, n).trim()}…` : t);
 const fullDateTime = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
+// Inline SVGs, not emoji/text glyphs — a glyph's rendering (and vertical centering within its
+// own em-box) depends on whatever font the OS falls back to; an SVG always centers exactly and
+// looks the same everywhere.
+const ICON_PROPS = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
+function ChevronIcon({ size = 12 }) {
+  return <svg width={size} height={size} {...ICON_PROPS} strokeWidth={2.5}><polyline points="9 6 15 12 9 18" /></svg>;
+}
+function DocumentIcon({ size = 14 }) {
+  return <svg width={size} height={size} {...ICON_PROPS}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+}
+function LockIcon({ size = 11 }) {
+  return <svg width={size} height={size} {...ICON_PROPS} strokeWidth={2.5}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
+}
+function ShieldIcon({ size = 13 }) {
+  return <svg width={size} height={size} {...ICON_PROPS}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
+}
+
 function StatusBadge({ status }) {
   const on = status === "processed";
   return (
@@ -45,6 +63,8 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
   const [showSaved, setShowSaved] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [openDetailId, setOpenDetailId] = useState(null);
+  const [cardHover, cardHoverProps] = useHover();
+  const dumpActive = focused || cardHover;
   const save = () => {
     const t = text.trim();
     if (!t) return;
@@ -69,8 +89,9 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
 
       <div style={{ position: "fixed", top: SP.md, right: SP.md, zIndex: 2, display: "flex", alignItems: "center", gap: SP.sm }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 99, padding: "6px 12px", fontSize: "0.68rem", color: "#8a8a92", whiteSpace: "nowrap" }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#bef24a", boxShadow: "0 0 6px rgba(190,242,74,0.7)" }} />
-          <span>Private by design</span> 🔒
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#bef24a", boxShadow: "0 0 6px rgba(190,242,74,0.7)", flexShrink: 0 }} />
+          <span>Private by design</span>
+          <LockIcon size={11} />
         </div>
         <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer", lineHeight: 1 }}>×</button>
       </div>
@@ -96,7 +117,7 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
             <div style={{ display: "flex", alignItems: "center", gap: SP.sm, padding: `${SP.sm}px ${SP.md}px` }}>
               <button onClick={() => setShowSaved((v) => !v)} aria-expanded={showSaved}
                 style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: SP.sm, background: "none", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left", padding: 0 }}>
-                <span style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#aaa", fontSize: "0.8rem", flexShrink: 0, transition: "transform 0.2s", transform: showSaved ? "rotate(90deg)" : "none" }}>›</span>
+                <span style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#aaa", flexShrink: 0, transition: "transform 0.2s", transform: showSaved ? "rotate(90deg)" : "none" }}><ChevronIcon size={12} /></span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: "block", color: "#e4e4e7", fontSize: "0.85rem", fontWeight: 700 }}>Previous dumps · {history.length}</span>
                   <span style={{ display: "block", color: "#666", fontSize: "0.7rem", marginTop: 1 }}>Accessible when you need them</span>
@@ -117,8 +138,8 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
                   return (
                     <div key={c.id} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: `${SP.sm}px ${SP.md}px` }}>
                       <button onClick={() => processed && setOpenDetailId(detailOpen ? null : c.id)}
-                        style={{ width: "100%", display: "flex", justifyContent: "space-between", gap: SP.sm, alignItems: "flex-start", background: "none", border: "none", padding: 0, textAlign: "left", cursor: processed ? "pointer" : "default", fontFamily: FONT }}>
-                        <span style={{ width: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.04)", flexShrink: 0, fontSize: "0.85rem" }}>📄</span>
+                        style={{ width: "100%", display: "flex", justifyContent: "space-between", gap: SP.sm, alignItems: "center", background: "none", border: "none", padding: 0, textAlign: "left", cursor: processed ? "pointer" : "default", fontFamily: FONT }}>
+                        <span style={{ width: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.04)", color: "#888", flexShrink: 0 }}><DocumentIcon size={13} /></span>
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ display: "block", color: "#999", fontSize: "0.68rem" }}>Dump · {timeAgo(c.createdAt)}</span>
                           <span style={{ display: "block", color: "#bcbcc6", fontSize: "0.82rem", lineHeight: 1.5, marginTop: 2 }}>{excerpt(c.text)}</span>
@@ -139,8 +160,9 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
                 })}
                 {!showAllHistory && history.length > PREVIEW_ROWS && (
                   <button onClick={() => setShowAllHistory(true)}
-                    style={{ background: "none", border: "none", color: "#8a8a92", fontSize: "0.76rem", fontWeight: 600, cursor: "pointer", fontFamily: FONT, padding: `${SP.xs}px 0`, textAlign: "center" }}>
-                    Show more ({history.length - PREVIEW_ROWS}) ⌄
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: "none", color: "#8a8a92", fontSize: "0.76rem", fontWeight: 600, cursor: "pointer", fontFamily: FONT, padding: `${SP.xs}px 0` }}>
+                    <span>Show more ({history.length - PREVIEW_ROWS})</span>
+                    <span style={{ transform: "rotate(90deg)", display: "grid" }}><ChevronIcon size={10} /></span>
                   </button>
                 )}
               </div>
@@ -148,26 +170,36 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
           </div>
         )}
 
-        {/* the brain-dump card (a golden rectangle canvas inside a bordered card) */}
-        <div style={{
-          border: `1px solid ${focused ? "rgba(190,242,74,0.40)" : "rgba(255,255,255,0.08)"}`,
-          boxShadow: focused ? "0 0 0 4px rgba(190,242,74,0.06), 0 20px 55px -22px rgba(190,242,74,0.18)" : "0 12px 44px -24px rgba(0,0,0,0.7)",
-          borderRadius: 20, padding: SP.md, background: "rgba(255,255,255,0.02)", transition: "border-color 0.25s, box-shadow 0.25s",
+        {/* the brain-dump card (a golden rectangle canvas inside a bordered card) — a lime
+            halo builds on hover and holds while typing, so the card reads as an inviting,
+            interactive drop zone rather than a static box. */}
+        <div {...cardHoverProps} style={{
+          border: `1px solid ${dumpActive ? "rgba(190,242,74,0.45)" : "rgba(255,255,255,0.08)"}`,
+          boxShadow: dumpActive
+            ? "0 0 0 4px rgba(190,242,74,0.08), 0 0 46px -10px rgba(190,242,74,0.45), 0 24px 60px -24px rgba(190,242,74,0.22)"
+            : "0 12px 44px -24px rgba(0,0,0,0.7)",
+          transform: cardHover && !focused ? "translateY(-3px)" : "translateY(0)",
+          borderRadius: 20, padding: SP.md, background: "rgba(255,255,255,0.02)",
+          transition: "border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: SP.sm }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#bef24a" }} />
             <span style={{ color: "#777", fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>Brain dump</span>
           </div>
 
-          <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus
-            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
-            placeholder={"Start typing… thoughts, worries, to-dos, half-ideas — anything."}
-            style={{
-              width: "100%", minHeight: CANVAS_H, background: "none", border: "none",
-              color: "#e4e4e7", fontSize: "0.95rem", lineHeight: 1.7,
-              fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box", padding: 0,
-            }} />
+          {/* the writing well — a visibly distinct, slightly sunken surface, so it's obvious
+              where typing lands rather than blending into the card chrome around it. */}
+          <div style={{ background: "rgba(0,0,0,0.18)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: SP.sm, boxShadow: "inset 0 1px 8px rgba(0,0,0,0.25)" }}>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus
+              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
+              placeholder={"Start typing… thoughts, worries, to-dos, half-ideas — anything."}
+              style={{
+                width: "100%", minHeight: CANVAS_H, background: "none", border: "none",
+                color: "#e4e4e7", fontSize: "0.95rem", lineHeight: 1.7,
+                fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box", padding: 0,
+              }} />
+          </div>
 
           {dup && (
             <p style={{ fontSize: "0.72rem", color: "#e3a06a", marginTop: SP.sm, display: "flex", gap: 6, lineHeight: 1.5 }}>
@@ -182,7 +214,7 @@ export function CaptureScreen({ captures = [], processedCaptures = [], onCapture
         </div>
 
         <p style={{ textAlign: "center", color: "#555", fontSize: "0.74rem", marginTop: SP.md, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <span>🛡️</span><span>Nothing is lost. Everything stays private.</span>
+          <ShieldIcon size={13} /><span>Nothing is lost. Everything stays private.</span>
         </p>
       </div>
     </div>
