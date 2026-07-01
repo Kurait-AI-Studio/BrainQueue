@@ -137,6 +137,19 @@ async function fetchRemoteTasks(userId) {
   return data.map(fromRow);
 }
 
+// The `bq_onboarded_${userId}` localStorage flag doesn't survive a new browser/device
+// or a cleared profile, so onboarding can otherwise resurface for an already-onboarded
+// user. `onboarding_completed` is already logged to task_events on completion — check
+// it here as a durable fallback so a hit lets us skip the replay and backfill the flag.
+async function hasCompletedOnboardingRemote(userId) {
+  const sb = getSupabase();
+  if (!sb) return false;
+  const { data, error } = await sb.from("task_events").select("event_type")
+    .eq("user_id", userId).eq("event_type", "onboarding_completed").limit(1);
+  if (error) { console.warn("onboarding check:", error.message); return false; }
+  return data.length > 0;
+}
+
 async function upsertTask(task) {
   const sb = getSupabase();
   if (!sb) return;
@@ -252,6 +265,20 @@ export function MainApp({ session }) {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem(`bq_onboarded_${userId}`); } catch { return false; }
   });
+  // localStorage alone doesn't follow the user across browsers/devices, so a fresh
+  // profile can look "un-onboarded" even though task_events already has the completion
+  // event. Confirm against that durable record and stop the replay if it's there.
+  useEffect(() => {
+    if (!showOnboarding) return;
+    let cancelled = false;
+    hasCompletedOnboardingRemote(userId).then((done) => {
+      if (cancelled || !done) return;
+      try { localStorage.setItem(`bq_onboarded_${userId}`, "1"); } catch { /* best effort */ }
+      setShowOnboarding(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
   const [showCapture, setShowCapture] = useState(false);
   const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing capture(s)
   const [processingCaptureIds, setProcessingCaptureIds] = useState([]); // captures being processed (1 or batch)
