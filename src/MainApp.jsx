@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
+import { track } from "@vercel/analytics";
 import { CATEGORIES } from "./brainDumpSpec";
 import { GlassButton, ViewTab, TaskCard, DoneCard, MouseGlow, EmptyState, InlineCatAdd, Toast, XpBurst, SetCelebration, AppSidebar } from "./ui";
 import { recordSetClear, celebrationTitle } from "./lib/rewards";
@@ -199,6 +200,11 @@ function mergeTasks(local, remote) {
 }
 
 const VIEWS = ["🔥 Do Now", "⚡ Quick Wins", "🧠 Low Energy", "🗂 By Category", "✅ Done"];
+
+// Vercel Web Analytics: section usage, separate from the Supabase telemetry moat (which
+// captures behavioral data for the learning loop). This is just "what do people click,
+// and from where" — visible directly in the Vercel dashboard, no querying needed.
+const trackSection = (section, source) => track("section_click", { section, source });
 
 // glass + glassStrong tokens now live in ./ui/tokens (imported above).
 
@@ -663,6 +669,7 @@ export function MainApp({ session }) {
       <AppSidebar session={session} tasks={tasks} active={showCapture ? "capture" : "tasks"} open={sidebarOpen} onClose={() => setSidebarOpen(false)}
         onAddTask={() => setShowAdd(true)} onSignOut={() => signOut()} pendingCaptures={captures.length}
         onNav={(id) => {
+          trackSection(id, "sidebar");
           if (id === "capture") setShowCapture(true);
           else if (id === "focus") setShowSessionSetup(true);
           else if (id === "tasks") setView(3);
@@ -692,14 +699,14 @@ export function MainApp({ session }) {
                 </div>
               </div>
               <div className="bq-actions">
-                <GlassButton onClick={() => setShowSettings(true)} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.82rem" }}>⚙️<span className="bq-lbl"> Settings</span></GlassButton>
-                <GlassButton onClick={() => setShowSessionSetup(true)} title="Focus" accent="#6bffb3" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>▶<span className="bq-lbl"> Focus</span></GlassButton>
-                <GlassButton onClick={() => setShowDump(true)} title="Brain Dump" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>✨<span className="bq-lbl"> Brain Dump</span></GlassButton>
-                <GlassButton onClick={() => setShowAdd(true)} title="Add task" accent="#bef24a" style={{ padding: "0.55rem 0.9rem", fontSize: "0.82rem" }}>+<span className="bq-lbl"> Add</span></GlassButton>
+                <GlassButton onClick={() => { trackSection("settings", "header"); setShowSettings(true); }} title="Settings" style={{ padding: "0.55rem 0.7rem", fontSize: "0.82rem" }}>⚙️<span className="bq-lbl"> Settings</span></GlassButton>
+                <GlassButton onClick={() => { trackSection("focus", "header"); setShowSessionSetup(true); }} title="Focus" accent="#6bffb3" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>▶<span className="bq-lbl"> Focus</span></GlassButton>
+                <GlassButton onClick={() => { trackSection("brain_dump", "header"); setShowDump(true); }} title="Brain Dump" style={{ padding: "0.55rem 0.85rem", fontSize: "0.82rem" }}>✨<span className="bq-lbl"> Brain Dump</span></GlassButton>
+                <GlassButton onClick={() => { trackSection("add_task", "header"); setShowAdd(true); }} title="Add task" accent="#bef24a" style={{ padding: "0.55rem 0.9rem", fontSize: "0.82rem" }}>+<span className="bq-lbl"> Add</span></GlassButton>
               </div>
             </div>
             <div style={{ display: "flex", gap: "0.4rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
-              {VIEWS.map((v, i) => <ViewTab key={i} label={v} active={view === i} onClick={() => setView(i)} />)}
+              {VIEWS.map((v, i) => <ViewTab key={i} label={v} active={view === i} onClick={() => { track("view_tab_click", { view: v }); setView(i); }} />)}
             </div>
           </div>
         </div>

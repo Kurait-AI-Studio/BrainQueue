@@ -1,4 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { getSupabase } from "./lib/client";
 import { LoginScreen, Splash } from "./ui/LoginScreen";
 
@@ -20,12 +22,18 @@ export default function App() {
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
 
-  if (session === undefined) return <Splash />;
-  if (!session) return <LoginScreen />;
   // key on user id so switching accounts fully remounts with fresh per-user state
-  return (
+  const content = session === undefined ? <Splash /> : !session ? <LoginScreen /> : (
     <Suspense fallback={<Splash />}>
       <MainApp key={session.user.id} session={session} />
     </Suspense>
+  );
+
+  return (
+    <>
+      {content}
+      <Analytics />
+      <SpeedInsights />
+    </>
   );
 }

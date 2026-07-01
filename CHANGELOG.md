@@ -7,6 +7,13 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+### Added
+- **Vercel Web Analytics + Speed Insights.** Page views and Core Web Vitals now flow into
+  the Vercel dashboard. Also wired `section_click` / `view_tab_click` events at every real
+  navigation point (sidebar, header quick actions, the Do Now/Quick Wins/etc. tabs) — a
+  lightweight usage view, separate from the Supabase telemetry moat (`task_events`), which
+  exists to feed the future learning loop rather than answer "what do people click."
+
 ## [2.4.0] — 2026-07-01
 Capture inbox ships: "capture now, process later" stops being just the thesis and becomes
 a real, usable part of the app.
