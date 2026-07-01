@@ -36,14 +36,17 @@
     "AppSidebar": "src/ui/AppSidebar.jsx",
     "SetCelebration": "src/ui/SetCelebration.jsx",
     "XpBurst": "src/ui/XpBurst.jsx",
-    "TaskDetailModal": "src/ui/TaskDetailModal.jsx"
+    "TaskDetailModal": "src/ui/TaskDetailModal.jsx",
+    "CaptureScreen": "src/ui/CaptureScreen.jsx"
   },
   "overrides": {
     "FocusSetsScreen": { "cardMode": "single", "viewport": "1280x860" },
     "SetCelebration": { "cardMode": "single", "viewport": "900x640" },
     "TaskDetailModal": { "cardMode": "single", "viewport": "1000x900" },
     "TaskCard": { "cardMode": "column" },
-    "DoneCard": { "cardMode": "column" }
+    "DoneCard": { "cardMode": "column" },
+    "CaptureScreen": { "cardMode": "single", "viewport": "900x1100" },
+    "XpBurst": { "cardMode": "single", "primaryStory": "Burst" }
   },
   "readmeHeader": ".design-sync/conventions.md"
 }

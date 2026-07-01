@@ -5,29 +5,34 @@ with inline styles** — there are no CSS classes to apply and (except `GlassBut
 `className`/`style` passthrough) no styling props. You compose them and write only your
 own layout glue with inline `style={{}}`.
 
-## Two visual idioms (the library is mid-migration)
-- **Legacy "glass" primitives** — translucent glassmorphism on `#060610`, fonts **Syne**
-  (display) + **DM Mono** (body), accent lime **`#e8ff5a`**. This is most of the kit:
-  `GlassButton`, `ViewTab`, sliders, the modals, the gamification/analytics widgets.
-- **New "clean" surface** — flat solid-dark cards on `#09090c`, font **Plus Jakarta Sans**,
-  accent green-lime **`#bef24a`**. Used by the app-shell screens and the task cards:
-  `FocusSetsScreen`, `AppSidebar`, `SetCelebration`, `XpBurst`, `TaskCard`, `DoneCard`.
+## One accent, one font — two surface treatments
+The library has fully migrated to a single brand: font **Plus Jakarta Sans** everywhere,
+accent green-lime **`#bef24a`** everywhere. There is no second color/font idiom to avoid
+mixing — every component uses these. What still varies is the **surface treatment**:
+- **Frosted "glass"** — translucent blurred panels (`backdrop-filter: blur(...)`) on a
+  near-black canvas. Used by `GlassButton`, `ViewTab`, sliders, the modals
+  (`TaskModal`/`SettingsModal`/`AnalyticsModal`/`SessionSetupModal`), and the
+  gamification/analytics widgets.
+- **Flat solid-dark cards** — opaque bordered cards, no blur. Used by the app-shell
+  screens: `FocusSetsScreen`, `AppSidebar`, `SetCelebration`, `XpBurst`, `CaptureScreen`,
+  `TaskCard`, `DoneCard`.
 
-Both render on a near-black canvas. When composing a new screen, match the surface of the
-components you use — don't mix a glass modal onto a flat-clean page without intent.
+Both render on a near-black canvas (`#060610`–`#09090c`). When composing a new screen,
+match the surface of the components you use — don't mix a glass modal onto a flat-clean
+page without intent.
 
 ## Setup
 - **No provider/wrapper is needed** — every component renders standalone.
 - **Dark canvas:** keep designs on a near-black background (`#060610`–`#09090c`).
-  `styles.css` sets the dark `body` and loads the fonts.
-- **Fonts:** Syne, DM Mono, and Plus Jakarta Sans, all loaded by `styles.css`. Don't substitute.
+  `styles.css` sets the dark `body` and loads the font.
+- **Font:** Plus Jakarta Sans, loaded by `styles.css`. Don't substitute.
 
 ## Styling idiom
 - **No utility classes and no theme tokens** — each component carries its own styling; you
   do NOT pass classNames to restyle them. Configure each through its **props** (read its `.d.ts`).
-- **Accents:** lime `#e8ff5a` (legacy) / green-lime `#bef24a` (new); success `#6bffb3`,
-  info `#6b9fff`, plus per-category colors. Style only your **own** wrappers (flex/grid/gap)
-  with inline styles, matching the fonts above.
+- **Accent:** green-lime `#bef24a`; success `#6bffb3`, info `#6b9fff`, plus per-category
+  colors. Style only your **own** wrappers (flex/grid/gap) with inline styles, matching
+  the font above.
 
 ## Components (props in each .d.ts / usage in .prompt.md)
 - Buttons & inputs: `GlassButton`, `ViewTab`, `GlassSlider`, `WeightSlider`, `Dim`, `InlineCatAdd`
@@ -36,7 +41,8 @@ components you use — don't mix a glass modal onto a flat-clean page without in
 - Chrome: `MouseGlow` (fixed ambient glow), `UserChip`, `EmptyState`, `Toast`
 - Modals (fixed overlays): `TaskModal`, `SettingsModal`, `AnalyticsModal`, `SessionSetupModal`
 - Full-screen app shells (`position:fixed`, props drive real data): `FocusSetsScreen`
-  (proposed focus sets), `AppSidebar` (persistent nav rail)
+  (proposed focus sets), `AppSidebar` (persistent nav rail), `CaptureScreen` (the capture
+  inbox — dump canvas + a merged New/Processed dump history)
 - Reward overlays (`position:fixed`, transient): `SetCelebration` (set/combo/streak
   celebration), `XpBurst` (per-task "+N XP" pop)
 
@@ -49,6 +55,6 @@ import { TaskCard, GlassButton } from "brainqueue";
   <TaskCard
     task={{ title: "Finish the Q2 report", categories: ["Work"], urgency: 5, importance: 5, effort: 4, energy: 4, est_minutes: 120 }}
     onEdit={() => {}} onMarkDone={() => {}} onDelete={() => {}} onSchedule={() => {}} />
-  <GlassButton accent="#e8ff5a" onClick={() => {}}>+ Add task</GlassButton>
+  <GlassButton accent="#bef24a" onClick={() => {}}>+ Add task</GlassButton>
 </div>
 ```
