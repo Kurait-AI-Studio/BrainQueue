@@ -7,12 +7,36 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-07-01
+The Capture screen gets a real design pass, and "previous dumps" finally shows your actual
+dump history — not just what's still waiting to be sorted.
+
 ### Added
 - **Vercel Web Analytics + Speed Insights.** Page views and Core Web Vitals now flow into
   the Vercel dashboard. Also wired `section_click` / `view_tab_click` events at every real
   navigation point (sidebar, header quick actions, the Do Now/Quick Wins/etc. tabs) — a
   lightweight usage view, separate from the Supabase telemetry moat (`task_events`), which
   exists to feed the future learning loop rather than answer "what do people click."
+- **Processed-dump history in Capture.** "Previous dumps" used to only ever show the
+  pending queue — once a dump was processed it vanished from view entirely. It now shows
+  your recent history too, each entry tagged **New** or **Processed**; tapping a processed
+  entry reveals when it was captured and processed (not the raw text again — summary only).
+
+### Changed
+- **Capture screen redesign.** An editorial header, a "Private by design" badge, and the
+  dump textarea now sits in its own clearly-bordered card with a distinct "well" so it's
+  obvious where typing lands. Icons (chevron, document, lock, shield) are now inline SVGs
+  instead of text/emoji glyphs, which rendered inconsistently — and looked off-center —
+  depending on the device's font fallback. The card also gets a lime-green halo and a
+  gentle lift on hover.
+
+### Fixed
+- **Onboarding no longer replays for already-onboarded users.** Completion was tracked only
+  in `localStorage`, which doesn't follow you to a new browser, device, or cleared profile.
+  Now falls back to checking for an existing `onboarding_completed` event before replaying.
+- **"Previous dumps" is reachable without scrolling.** The toggle used to sit below the
+  header, canvas, and save button — easily below the fold on mobile. It now sits right
+  after the header, still collapsed by default.
 
 ## [2.4.0] — 2026-07-01
 Capture inbox ships: "capture now, process later" stops being just the thesis and becomes
