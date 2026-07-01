@@ -51,33 +51,10 @@ export function CaptureScreen({ captures = [], onCapture, onProcessAll, onDelete
           </p>
         </div>
 
-        {/* the calm canvas (a golden rectangle) */}
-        <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus
-          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
-          placeholder={"Start typing… thoughts, worries, to-dos, half-ideas — anything."}
-          style={{
-            width: "100%", minHeight: CANVAS_H, background: "rgba(255,255,255,0.025)",
-            border: `1px solid ${focused ? "rgba(190,242,74,0.40)" : "rgba(255,255,255,0.08)"}`,
-            boxShadow: focused ? "0 0 0 4px rgba(190,242,74,0.06), 0 20px 55px -22px rgba(190,242,74,0.18)" : "0 12px 44px -24px rgba(0,0,0,0.7)",
-            borderRadius: 18, padding: SP.md, color: "#e4e4e7", fontSize: "0.95rem", lineHeight: 1.7,
-            fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box", transition: "border-color 0.25s, box-shadow 0.25s",
-          }} />
-
-        {dup && (
-          <p style={{ fontSize: "0.72rem", color: "#e3a06a", marginTop: SP.sm, display: "flex", gap: 6, lineHeight: 1.5 }}>
-            <span>🍂</span><span>Similar to something you captured {timeAgo(dup.match.createdAt)}. Capture it anyway, or sort that one instead — your call.</span>
-          </p>
-        )}
-
-        <div style={{ marginTop: SP.md }}>
-          <GlassButton onClick={save} disabled={!text.trim()} accent="#bef24a" style={{ width: "100%", padding: `${SP.sm}px`, opacity: text.trim() ? 1 : 0.5 }}>Save it</GlassButton>
-        </div>
-        <p style={{ textAlign: "center", color: "#3a3a3a", fontSize: "0.68rem", marginTop: SP.sm }}>⌘/Ctrl + Enter to save</p>
-
-        {/* Saved — collapsed by default; a discreet tap reveals it. Sorting is batch-only. */}
+        {/* Saved — collapsed by default (discreet), but the toggle itself sits above the
+            canvas so it's reachable without scrolling past it. */}
         {captures.length > 0 && (
-          <div style={{ marginTop: SP.xl }}>
+          <div style={{ marginBottom: SP.lg }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: SP.sm }}>
               <button onClick={() => setShowSaved((v) => !v)} aria-expanded={showSaved}
                 style={{ background: "none", border: "none", color: "#777", fontSize: "0.74rem", textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", gap: 7, padding: 0 }}>
@@ -104,6 +81,30 @@ export function CaptureScreen({ captures = [], onCapture, onProcessAll, onDelete
             )}
           </div>
         )}
+
+        {/* the calm canvas (a golden rectangle) */}
+        <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
+          placeholder={"Start typing… thoughts, worries, to-dos, half-ideas — anything."}
+          style={{
+            width: "100%", minHeight: CANVAS_H, background: "rgba(255,255,255,0.025)",
+            border: `1px solid ${focused ? "rgba(190,242,74,0.40)" : "rgba(255,255,255,0.08)"}`,
+            boxShadow: focused ? "0 0 0 4px rgba(190,242,74,0.06), 0 20px 55px -22px rgba(190,242,74,0.18)" : "0 12px 44px -24px rgba(0,0,0,0.7)",
+            borderRadius: 18, padding: SP.md, color: "#e4e4e7", fontSize: "0.95rem", lineHeight: 1.7,
+            fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box", transition: "border-color 0.25s, box-shadow 0.25s",
+          }} />
+
+        {dup && (
+          <p style={{ fontSize: "0.72rem", color: "#e3a06a", marginTop: SP.sm, display: "flex", gap: 6, lineHeight: 1.5 }}>
+            <span>🍂</span><span>Similar to something you captured {timeAgo(dup.match.createdAt)}. Capture it anyway, or sort that one instead — your call.</span>
+          </p>
+        )}
+
+        <div style={{ marginTop: SP.md }}>
+          <GlassButton onClick={save} disabled={!text.trim()} accent="#bef24a" style={{ width: "100%", padding: `${SP.sm}px`, opacity: text.trim() ? 1 : 0.5 }}>Save it</GlassButton>
+        </div>
+        <p style={{ textAlign: "center", color: "#3a3a3a", fontSize: "0.68rem", marginTop: SP.sm }}>⌘/Ctrl + Enter to save</p>
       </div>
     </div>
   );
