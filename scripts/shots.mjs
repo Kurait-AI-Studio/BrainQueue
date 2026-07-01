@@ -21,6 +21,8 @@ const SHOTS = [
   { name: "modal-settings-mobile", url: `${URL}?modal=settings`, w: 390, h: 844 },
   { name: "modal-analytics-mobile", url: `${URL}?modal=analytics`, w: 390, h: 844 },
   { name: "modal-session-mobile", url: `${URL}?modal=session`, w: 390, h: 844 },
+  { name: "capture-desktop", url: `${URL}?view=capture`, w: 1200, h: 900, full: true },
+  { name: "capture-mobile", url: `${URL}?view=capture`, w: 390, h: 844, full: true },
 ];
 
 // Start the dev server (shell:true so `npm` resolves on macOS/nvm).
