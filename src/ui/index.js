@@ -22,3 +22,4 @@ export { FocusSetsScreen } from "./FocusSetsScreen";
 export { XpBurst } from "./XpBurst";
 export { SetCelebration } from "./SetCelebration";
 export { AppSidebar } from "./AppSidebar";
+export { CaptureScreen } from "./CaptureScreen";

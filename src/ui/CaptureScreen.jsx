@@ -57,10 +57,10 @@ function StatusBadge({ status }) {
   );
 }
 
-export function CaptureScreen({ captures = [], processedCaptures = [], onCapture, onProcessAll, onDelete, onClose }) {
+export function CaptureScreen({ captures = [], processedCaptures = [], onCapture, onProcessAll, onDelete, onClose, defaultShowSaved = false }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
-  const [showSaved, setShowSaved] = useState(false);
+  const [showSaved, setShowSaved] = useState(defaultShowSaved);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [openDetailId, setOpenDetailId] = useState(null);
   const [cardHover, cardHoverProps] = useHover();
