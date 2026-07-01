@@ -28,10 +28,17 @@ focus sets + Pomodoro, XP/levels, weekly review, analytics, **first-run onboardi
   never reach the browser. Default model: **`gpt-4.1-mini`** (~11× cheaper than Sonnet 4.6).
 
 ## Where things live
-- `src/App.jsx` — app state, Supabase/auth/calendar glue, telemetry (`logEvent` + the
-  durable outbox), and the still-inline screens (`FocusMode` timer, Brain Dump, login).
+- `src/App.jsx` — the auth/session shell only (39 lines): Supabase session state, the
+  signed-out `LoginScreen`, and mounting `<Analytics/>`/`<SpeedInsights/>`. Lazy-loads
+  `MainApp` once a session exists.
+- `src/MainApp.jsx` — the authed app's state + logic: Supabase task/capture sync, telemetry
+  (`logEvent` + the durable outbox, via `src/lib/client.js`), calendar glue, and the screens
+  that are still inline here rather than extracted (the header/shell chrome, modals wiring).
+  `FocusMode`, `BrainDumpModal`, `CaptureScreen`, and `LoginScreen` are already extracted
+  into `src/ui/` — don't assume they're inline.
 - `src/ui/` — presentational component library; `index.js` re-exports everything. Includes
-  `FocusSetsScreen` (the focus-set picker/editor) and `AppSidebar`.
+  `FocusSetsScreen` (the focus-set picker/editor), `CaptureScreen` (the Capture inbox),
+  `BrainDumpModal`, `FocusMode`, `LoginScreen`, and `AppSidebar`.
 - `src/lib/` — pure domain logic: `tasks.js` (scoring, XP, classification, `buildProposals`),
   `xp.js`, `rewards.js`, `weeklyReview.js`.
 - `src/preview/` + `gallery.html` — **auth-free** gallery that renders every component with
@@ -112,14 +119,16 @@ applied <versions>` first. (0008 = `event_id` unique index; 0009 = daily dump qu
 - [`docs/deploy-checklist.md`](docs/deploy-checklist.md) — env vars, migrations, secrets, smoke tests, OWASP table.
 - [`docs/model-agnostic-strategy.md`](docs/model-agnostic-strategy.md) · [`docs/personalization-strategy.md`](docs/personalization-strategy.md) · [`docs/distribution-strategy.md`](docs/distribution-strategy.md) — strategy.
 - [`README.md`](README.md) — Brain Dump deep dive (prompt, schema, model choice).
-- [`CHANGELOG.md`](CHANGELOG.md) — what has shipped. **Current: v2.3.0.**
+- [`CHANGELOG.md`](CHANGELOG.md) — what has shipped. **Current: v2.5.0.**
 
-## Current state (v2.3.0)
-Built: capture/sync, Brain Dump **v3** (inferred categories + due dates + clean notes,
-`gpt-4.1-mini`, cross-dump memory), focus sets with a max-work-time ceiling, Pomodoro, XP +
-celebrations, weekly review, analytics, durable telemetry, **first-run onboarding**, **Memory**
-(opt-in consent + the nudge), **Level 0 adaptation** (learned weights), and a hardened security
-posture (CSP/HSTS headers, Turnstile captcha, daily dump cap, CORS allowlist, CI audit).
+## Current state (v2.5.0)
+Built: capture inbox ("capture now, process later", with a processed-dump history and
+New/Processed badges) + sync, Brain Dump **v3** (inferred categories + due dates + clean
+notes, `gpt-4.1-mini`, cross-dump memory), focus sets with a max-work-time ceiling, Pomodoro,
+XP + celebrations, weekly review, analytics, durable telemetry, **first-run onboarding**,
+**Memory** (opt-in consent + the nudge), **Level 0 adaptation** (learned weights), and a
+hardened security posture (CSP/HSTS headers, Turnstile captcha, daily dump cap, CORS
+allowlist, CI audit).
 **The deeper learning loop** (per-user profiles / Level 1–2, distillation) is the next frontier
 and needs real users. Remaining refactor: extract the infra-coupled inline screens from
 `MainApp.jsx`.

@@ -150,8 +150,10 @@ frontier. Capturing it from user #1 is why none of the first week's data is ever
 
 **Onboard** — first-run flow: welcome → demo dump → simulated session with an XP win → the
 **Memory** ask (opt-in personalization + training consent), with a recurring nudge.
-**Capture** — Brain Dump v3 (inferred categories, due dates, clean notes, cross-dump memory,
-`gpt-4.1-mini`, server-side) · manual task add · categories · recurrence.
+**Capture** — a dedicated capture inbox ("capture now, process later", with a processed-dump
+history showing New/Processed status) feeding Brain Dump v3 (inferred categories, due dates,
+clean notes, cross-dump memory, `gpt-4.1-mini`, server-side) · manual task add · categories ·
+recurrence.
 **Prioritize** — deterministic score with adjustable weights, **adapted to you (Level 0)** when
 Memory is on · tiers (reflex/standard/heavy) · effort/energy/cognitive-load classification.
 **Focus** — "Focus Sets Proposed for You" (3 sets, per-set XP, choose → session) · full-screen
@@ -166,7 +168,7 @@ magic-link login · server-authoritative daily dump cap · CORS allowlist · CI 
 Memory consent (de-identification + no-Google-data-in-training) · errors humanized (no SQL leak).
 **Infra** — Supabase Auth + RLS + realtime · telemetry capture (append-only log + registries +
 consent/source) · Anthropic/OpenAI edge-function proxy, default **`gpt-4.1-mini`** (keys
-server-side only) · `src/ui` component library · tag-driven GitHub Releases (now **v2.3.0**) ·
+server-side only) · `src/ui` component library · tag-driven GitHub Releases (now **v2.5.0**) ·
 brain-dump eval harness + blind model duel (`eval/duel.*`).
 
 ### XP curve (reference)
