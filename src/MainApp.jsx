@@ -179,6 +179,19 @@ async function fetchRemoteCaptures(userId) {
   if (error) { console.warn("captures fetch:", error.message); return null; }
   return data.map(r => ({ id: r.id, text: r.text, createdAt: r.created_at }));
 }
+// Already-processed dumps aren't kept anywhere client-side once sorted (see markRemoteCaptureProcessed
+// below) — fetched read-only, on demand, just to render the "previous dumps" history with a Processed
+// badge. Capped rather than paginated: a history view, not a working list.
+const PROCESSED_HISTORY_LIMIT = 24;
+async function fetchProcessedCaptures(userId) {
+  const sb = getSupabase();
+  if (!sb) return [];
+  const { data, error } = await sb.from("captures").select("id, text, created_at, processed_at")
+    .eq("user_id", userId).eq("processed", true)
+    .order("processed_at", { ascending: false }).limit(PROCESSED_HISTORY_LIMIT);
+  if (error) { console.warn("processed captures fetch:", error.message); return []; }
+  return data.map(r => ({ id: r.id, text: r.text, createdAt: r.created_at, processedAt: r.processed_at }));
+}
 async function insertRemoteCapture(cap) {
   const sb = getSupabase();
   if (!sb) return;
@@ -282,6 +295,15 @@ export function MainApp({ session }) {
   const [showCapture, setShowCapture] = useState(false);
   const [dumpSeed, setDumpSeed] = useState("");          // pre-fills the dump when processing capture(s)
   const [processingCaptureIds, setProcessingCaptureIds] = useState([]); // captures being processed (1 or batch)
+  // Previous-dumps history (read-only) for the Capture screen's "processed" list — fetched
+  // lazily the first time Capture opens, since it's display-only and not part of the working set.
+  const [processedCaptures, setProcessedCaptures] = useState([]);
+  const processedLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!showCapture || processedLoadedRef.current) return;
+    processedLoadedRef.current = true;
+    fetchProcessedCaptures(userId).then(setProcessedCaptures);
+  }, [showCapture, userId]);
 
   const [state, setState] = useState(() => loadOrAdoptState(userId));
   const { tasks, weights = DEFAULT_WEIGHTS, customCategories = [], reviewTone = DEFAULT_REVIEW_TONE, captures = [] } = state;
@@ -808,7 +830,7 @@ export function MainApp({ session }) {
         weights={effWeights}
         existingCategories={[...new Set([...syncedCategories, ...tasks.flatMap(taskCats)])].filter(Boolean)}
         existingTaskTitles={tasks.filter(t => !t.done).map(t => t.title).filter(Boolean)} />}
-      {showCapture && <CaptureScreen captures={captures} onCapture={addCapture} onDelete={removeCapture}
+      {showCapture && <CaptureScreen captures={captures} processedCaptures={processedCaptures} onCapture={addCapture} onDelete={removeCapture}
         onProcessAll={(caps) => { setDumpSeed(caps.map(c => c.text).join("\n\n")); setProcessingCaptureIds(caps.map(c => c.id)); setShowCapture(false); setShowDump(true); }}
         onClose={() => setShowCapture(false)} />}
       {(showAdd || editTask) && <Suspense fallback={null}><TaskModal task={editTask} onClose={() => { setShowAdd(false); setEditTask(null); }} onSave={saveTask} customCategories={syncedCategories} onAddCategory={addCategory} /></Suspense>}

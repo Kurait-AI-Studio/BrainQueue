@@ -1,18 +1,20 @@
 // The Capture inbox — frictionless intake, decoupled from processing. Type or paste
 // anything and leave; it's saved raw here. Process captures into tasks (via the Brain Dump
 // preview) when you have the energy. Calm and reassuring by design: a safe place to unload a
-// busy mind, no pressure to sort. Previous captures are hidden by default (less to overwhelm
-// an ADHD brain) and revealed only on a discreet tap. Spacing follows the golden ratio.
-import { useState } from "react";
+// busy mind, no pressure to sort. Previous dumps get their own card, reachable without
+// scrolling past the canvas, but still collapsed until tapped. Spacing follows the golden ratio.
+import { useMemo, useState } from "react";
 import { GlassButton } from "./GlassButton";
 import { findSimilar } from "../lib/similar";
 
 const FONT = "'Plus Jakarta Sans', system-ui, sans-serif";
+const SERIF = "Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif";
 const PHI = 1.618;
 // Fibonacci scale ≈ golden-ratio steps, used for every gap / margin / padding.
 const SP = { xxs: 5, xs: 8, sm: 13, md: 21, lg: 34, xl: 55, xxl: 89 };
-const MAXW = 600;
-const CANVAS_H = Math.round((MAXW - SP.md * 2) / PHI); // golden-rectangle writing canvas
+const MAXW = 620;
+const CANVAS_H = Math.round((MAXW - SP.lg * 2) / PHI); // golden-rectangle writing canvas
+const PREVIEW_ROWS = 4; // rows shown before "Show more"
 
 const timeAgo = (iso) => {
   const m = Math.floor((Date.now() - new Date(iso)) / 60000);
@@ -22,11 +24,27 @@ const timeAgo = (iso) => {
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 };
+const excerpt = (t, n = 70) => (t.length > n ? `${t.slice(0, n).trim()}…` : t);
+const fullDateTime = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-export function CaptureScreen({ captures = [], onCapture, onProcessAll, onDelete, onClose }) {
+function StatusBadge({ status }) {
+  const on = status === "processed";
+  return (
+    <span style={{
+      flexShrink: 0, fontSize: "0.68rem", fontWeight: 700, borderRadius: 99, padding: "3px 10px",
+      background: on ? "rgba(167,139,250,0.12)" : "rgba(190,242,74,0.12)",
+      color: on ? "#c4b5fd" : "#bef24a",
+      border: `1px solid ${on ? "rgba(167,139,250,0.30)" : "rgba(190,242,74,0.30)"}`,
+    }}>{on ? "Processed" : "New"}</span>
+  );
+}
+
+export function CaptureScreen({ captures = [], processedCaptures = [], onCapture, onProcessAll, onDelete, onClose }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [openDetailId, setOpenDetailId] = useState(null);
   const save = () => {
     const t = text.trim();
     if (!t) return;
@@ -35,76 +53,137 @@ export function CaptureScreen({ captures = [], onCapture, onProcessAll, onDelete
   };
   const dup = text.trim().length > 8 ? findSimilar(text, captures, 0.45) : null;
 
+  // Merge pending (new) + already-processed dumps into one reverse-chronological history.
+  // Only "new" ones are actionable (Discard / Sort all); "processed" rows are read-only —
+  // tapping one reveals a couple more details, not the original raw text again.
+  const history = useMemo(() => [
+    ...captures.map((c) => ({ ...c, status: "new" })),
+    ...processedCaptures.map((c) => ({ ...c, status: "processed" })),
+  ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)), [captures, processedCaptures]);
+  const visibleHistory = showAllHistory ? history : history.slice(0, PREVIEW_ROWS);
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 120, background: "#0a0a0d", overflow: "auto", fontFamily: FONT }}>
       {/* soft, calming ambient light behind the canvas */}
       <div style={{ position: "fixed", top: "-12%", left: "50%", transform: "translateX(-50%)", width: "min(700px, 92vw)", height: 360, background: "radial-gradient(closest-side, rgba(190,242,74,0.10), rgba(190,242,74,0))", filter: "blur(24px)", pointerEvents: "none", zIndex: 0 }} />
-      <button onClick={onClose} aria-label="Close" style={{ position: "fixed", top: SP.md, right: SP.md, background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer", zIndex: 2, lineHeight: 1 }}>×</button>
 
-      <div style={{ position: "relative", zIndex: 1, maxWidth: MAXW, margin: "0 auto", padding: `${SP.xl}px ${SP.md}px ${SP.xxl}px`, animation: "task-enter 0.45s ease" }}>
-        {/* warm, reassuring header */}
-        <div style={{ textAlign: "center", marginBottom: SP.lg }}>
-          <div style={{ width: SP.xl, height: SP.xl, borderRadius: "50%", margin: `0 auto ${SP.md}px`, display: "grid", placeItems: "center", background: "rgba(190,242,74,0.10)", border: "1px solid rgba(190,242,74,0.22)", fontSize: "1.55rem" }}>🧠</div>
-          <h1 style={{ color: "#f4f4f5", fontSize: "1.65rem", fontWeight: 700, margin: `0 0 ${SP.xs}px`, letterSpacing: "-0.01em" }}>What's on your mind?</h1>
-          <p style={{ color: "#8a8a92", fontSize: "1.02rem", lineHeight: 1.6, maxWidth: Math.round(MAXW / PHI), margin: "0 auto" }}>
-            Let it all out — messy is perfect. Nothing here is a task yet, and there's no rush to sort it.
+      <div style={{ position: "fixed", top: SP.md, right: SP.md, zIndex: 2, display: "flex", alignItems: "center", gap: SP.sm }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 99, padding: "6px 12px", fontSize: "0.68rem", color: "#8a8a92", whiteSpace: "nowrap" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#bef24a", boxShadow: "0 0 6px rgba(190,242,74,0.7)" }} />
+          <span>Private by design</span> 🔒
+        </div>
+        <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: "#555", fontSize: "1.5rem", cursor: "pointer", lineHeight: 1 }}>×</button>
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, maxWidth: MAXW, margin: "0 auto", padding: `${SP.xxl}px ${SP.md}px ${SP.xxl}px`, animation: "task-enter 0.45s ease" }}>
+        {/* editorial header */}
+        <div style={{ marginBottom: SP.xl }}>
+          <p style={{ color: "#bef24a", fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", margin: `0 0 ${SP.sm}px` }}>Capture</p>
+          <h1 style={{ fontFamily: SERIF, fontWeight: 400, margin: 0, lineHeight: 1.18 }}>
+            <span style={{ display: "block", color: "#f4f4f5", fontSize: "clamp(1.5rem, 5vw, 2.1rem)" }}>Dump it all.</span>
+            <span style={{ display: "block", color: "#bef24a", fontSize: "clamp(1.5rem, 5vw, 2.1rem)" }}>We'll make sense of it.</span>
+          </h1>
+          <p style={{ color: "#8a8a92", fontSize: "0.98rem", lineHeight: 1.6, maxWidth: 440, margin: `${SP.sm}px 0 0`, fontFamily: FONT }}>
+            Get every thought, reminder, idea, or worry out of your head. Nothing here is a task yet — there's no rush to sort it.
           </p>
         </div>
 
-        {/* Saved — collapsed by default (discreet), but the toggle itself sits above the
-            canvas so it's reachable without scrolling past it. */}
-        {captures.length > 0 && (
-          <div style={{ marginBottom: SP.lg }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: SP.sm }}>
+        {/* Previous dumps — its own card, positioned above the canvas so it's always
+            reachable without scrolling, but the list itself stays collapsed until tapped.
+            Merges pending ("New") dumps with already-processed history. */}
+        {history.length > 0 && (
+          <div style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, marginBottom: SP.lg, overflow: "hidden", background: "rgba(255,255,255,0.015)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: SP.sm, padding: `${SP.sm}px ${SP.md}px` }}>
               <button onClick={() => setShowSaved((v) => !v)} aria-expanded={showSaved}
-                style={{ background: "none", border: "none", color: "#777", fontSize: "0.74rem", textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", gap: 7, padding: 0 }}>
-                <span>Saved · {captures.length}</span>
-                <span style={{ fontSize: "0.62rem", display: "inline-block", transition: "transform 0.2s", transform: showSaved ? "rotate(90deg)" : "none" }}>▸</span>
+                style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: SP.sm, background: "none", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left", padding: 0 }}>
+                <span style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#aaa", fontSize: "0.8rem", flexShrink: 0, transition: "transform 0.2s", transform: showSaved ? "rotate(90deg)" : "none" }}>›</span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", color: "#e4e4e7", fontSize: "0.85rem", fontWeight: 700 }}>Previous dumps · {history.length}</span>
+                  <span style={{ display: "block", color: "#666", fontSize: "0.7rem", marginTop: 1 }}>Accessible when you need them</span>
+                </span>
               </button>
-              <button onClick={() => onProcessAll(captures)}
-                style={{ background: "rgba(190,242,74,0.10)", border: "1px solid rgba(190,242,74,0.30)", borderRadius: 9, padding: `${SP.xs}px ${SP.sm + 2}px`, color: "#bef24a", fontWeight: 700, fontSize: "0.74rem", cursor: "pointer", fontFamily: FONT }}>
-                Sort all into tasks →
-              </button>
+              {captures.length > 0 && (
+                <button onClick={() => onProcessAll(captures)}
+                  style={{ flexShrink: 0, background: "rgba(190,242,74,0.10)", border: "1px solid rgba(190,242,74,0.30)", borderRadius: 9, padding: `${SP.xs}px ${SP.sm}px`, color: "#bef24a", fontWeight: 700, fontSize: "0.72rem", cursor: "pointer", fontFamily: FONT }}>
+                  Sort all →
+                </button>
+              )}
             </div>
             {showSaved && (
-              <div style={{ display: "flex", flexDirection: "column", gap: SP.sm, marginTop: SP.md }}>
-                {captures.map((c) => (
-                  <div key={c.id} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: `${SP.sm}px ${SP.md}px` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: SP.sm, alignItems: "flex-start" }}>
-                      <p style={{ color: "#bcbcc6", fontSize: "0.82rem", lineHeight: 1.55, margin: 0, whiteSpace: "pre-wrap", flex: 1, maxHeight: "4.6em", overflow: "hidden" }}>{c.text}</p>
-                      <span style={{ color: "#444", fontSize: "0.65rem", whiteSpace: "nowrap", marginTop: 2 }}>{timeAgo(c.createdAt)}</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: SP.sm, padding: `0 ${SP.md}px ${SP.md}px` }}>
+                {visibleHistory.map((c) => {
+                  const processed = c.status === "processed";
+                  const detailOpen = openDetailId === c.id;
+                  return (
+                    <div key={c.id} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: `${SP.sm}px ${SP.md}px` }}>
+                      <button onClick={() => processed && setOpenDetailId(detailOpen ? null : c.id)}
+                        style={{ width: "100%", display: "flex", justifyContent: "space-between", gap: SP.sm, alignItems: "flex-start", background: "none", border: "none", padding: 0, textAlign: "left", cursor: processed ? "pointer" : "default", fontFamily: FONT }}>
+                        <span style={{ width: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", background: "rgba(255,255,255,0.04)", flexShrink: 0, fontSize: "0.85rem" }}>📄</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", color: "#999", fontSize: "0.68rem" }}>Dump · {timeAgo(c.createdAt)}</span>
+                          <span style={{ display: "block", color: "#bcbcc6", fontSize: "0.82rem", lineHeight: 1.5, marginTop: 2 }}>{excerpt(c.text)}</span>
+                        </span>
+                        <StatusBadge status={c.status} />
+                      </button>
+                      {processed && detailOpen && (
+                        <div style={{ marginTop: SP.sm, paddingTop: SP.sm, borderTop: "1px solid rgba(255,255,255,0.06)", color: "#777", fontSize: "0.72rem", lineHeight: 1.7 }}>
+                          <div>Captured {fullDateTime(c.createdAt)}</div>
+                          {c.processedAt && <div>Processed {fullDateTime(c.processedAt)}</div>}
+                        </div>
+                      )}
+                      {!processed && (
+                        <button onClick={() => onDelete(c.id)} style={{ marginTop: SP.xs, background: "none", border: "none", color: "#5a5a62", fontSize: "0.72rem", cursor: "pointer", fontFamily: FONT, padding: 0 }}>Discard</button>
+                      )}
                     </div>
-                    <button onClick={() => onDelete(c.id)} style={{ marginTop: SP.xs, background: "none", border: "none", color: "#5a5a62", fontSize: "0.72rem", cursor: "pointer", fontFamily: FONT, padding: 0 }}>Discard</button>
-                  </div>
-                ))}
+                  );
+                })}
+                {!showAllHistory && history.length > PREVIEW_ROWS && (
+                  <button onClick={() => setShowAllHistory(true)}
+                    style={{ background: "none", border: "none", color: "#8a8a92", fontSize: "0.76rem", fontWeight: 600, cursor: "pointer", fontFamily: FONT, padding: `${SP.xs}px 0`, textAlign: "center" }}>
+                    Show more ({history.length - PREVIEW_ROWS}) ⌄
+                  </button>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* the calm canvas (a golden rectangle) */}
-        <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus
-          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
-          placeholder={"Start typing… thoughts, worries, to-dos, half-ideas — anything."}
-          style={{
-            width: "100%", minHeight: CANVAS_H, background: "rgba(255,255,255,0.025)",
-            border: `1px solid ${focused ? "rgba(190,242,74,0.40)" : "rgba(255,255,255,0.08)"}`,
-            boxShadow: focused ? "0 0 0 4px rgba(190,242,74,0.06), 0 20px 55px -22px rgba(190,242,74,0.18)" : "0 12px 44px -24px rgba(0,0,0,0.7)",
-            borderRadius: 18, padding: SP.md, color: "#e4e4e7", fontSize: "0.95rem", lineHeight: 1.7,
-            fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box", transition: "border-color 0.25s, box-shadow 0.25s",
-          }} />
+        {/* the brain-dump card (a golden rectangle canvas inside a bordered card) */}
+        <div style={{
+          border: `1px solid ${focused ? "rgba(190,242,74,0.40)" : "rgba(255,255,255,0.08)"}`,
+          boxShadow: focused ? "0 0 0 4px rgba(190,242,74,0.06), 0 20px 55px -22px rgba(190,242,74,0.18)" : "0 12px 44px -24px rgba(0,0,0,0.7)",
+          borderRadius: 20, padding: SP.md, background: "rgba(255,255,255,0.02)", transition: "border-color 0.25s, box-shadow 0.25s",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: SP.sm }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#bef24a" }} />
+            <span style={{ color: "#777", fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>Brain dump</span>
+          </div>
 
-        {dup && (
-          <p style={{ fontSize: "0.72rem", color: "#e3a06a", marginTop: SP.sm, display: "flex", gap: 6, lineHeight: 1.5 }}>
-            <span>🍂</span><span>Similar to something you captured {timeAgo(dup.match.createdAt)}. Capture it anyway, or sort that one instead — your call.</span>
-          </p>
-        )}
+          <textarea value={text} onChange={(e) => setText(e.target.value)} autoFocus
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
+            placeholder={"Start typing… thoughts, worries, to-dos, half-ideas — anything."}
+            style={{
+              width: "100%", minHeight: CANVAS_H, background: "none", border: "none",
+              color: "#e4e4e7", fontSize: "0.95rem", lineHeight: 1.7,
+              fontFamily: FONT, resize: "vertical", outline: "none", boxSizing: "border-box", padding: 0,
+            }} />
 
-        <div style={{ marginTop: SP.md }}>
-          <GlassButton onClick={save} disabled={!text.trim()} accent="#bef24a" style={{ width: "100%", padding: `${SP.sm}px`, opacity: text.trim() ? 1 : 0.5 }}>Save it</GlassButton>
+          {dup && (
+            <p style={{ fontSize: "0.72rem", color: "#e3a06a", marginTop: SP.sm, display: "flex", gap: 6, lineHeight: 1.5 }}>
+              <span>🍂</span><span>Similar to something you captured {timeAgo(dup.match.createdAt)}. Capture it anyway, or sort that one instead — your call.</span>
+            </p>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: SP.sm, marginTop: SP.md, paddingTop: SP.sm, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ color: "#3a3a3a", fontSize: "0.68rem" }}>⌘/Ctrl + Enter to save</span>
+            <GlassButton onClick={save} disabled={!text.trim()} accent="#bef24a" style={{ padding: `${SP.xs}px ${SP.lg}px`, opacity: text.trim() ? 1 : 0.5 }}>Save it →</GlassButton>
+          </div>
         </div>
-        <p style={{ textAlign: "center", color: "#3a3a3a", fontSize: "0.68rem", marginTop: SP.sm }}>⌘/Ctrl + Enter to save</p>
+
+        <p style={{ textAlign: "center", color: "#555", fontSize: "0.74rem", marginTop: SP.md, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <span>🛡️</span><span>Nothing is lost. Everything stays private.</span>
+        </p>
       </div>
     </div>
   );

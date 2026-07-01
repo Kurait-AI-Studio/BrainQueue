@@ -89,6 +89,10 @@ export function Gallery() {
   if (_view === "capture") return <CaptureScreen onCapture={() => ({ id: "x" })} onProcessAll={noop} onDelete={noop} onClose={noop} captures={[
     { id: "c1", text: "call the dentist about the filling, also need to reschedule the team sync to thursday and buy a birthday gift for mom", createdAt: new Date(Date.now() - 12 * 60000).toISOString() },
     { id: "c2", text: "idea: add a weekly email digest. research competitors pricing. finish the Q3 report draft before friday", createdAt: new Date(Date.now() - 3 * 3600000).toISOString() },
+  ]} processedCaptures={[
+    { id: "p1", text: "plan goals for next quarter, sort out the budget spreadsheet, deep work ideas for the new feature", createdAt: new Date(Date.now() - 26 * 3600000).toISOString(), processedAt: new Date(Date.now() - 25 * 3600000).toISOString() },
+    { id: "p2", text: "new business idea, send the pitch deck to Sarah, follow up with the supplier", createdAt: new Date(Date.now() - 50 * 3600000).toISOString(), processedAt: new Date(Date.now() - 49 * 3600000).toISOString() },
+    { id: "p3", text: "book flight for the conference, project notes to review, buy supplements", createdAt: new Date(Date.now() - 74 * 3600000).toISOString(), processedAt: new Date(Date.now() - 70 * 3600000).toISOString() },
   ]} />;
   const active = mockTasks.filter(t => !t.done);
   const done = mockTasks.filter(t => t.done);
