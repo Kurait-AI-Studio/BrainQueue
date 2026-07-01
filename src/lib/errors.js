@@ -52,6 +52,14 @@ export function humanizeError(err, fallback = "Something went wrong. Please try 
   // undiagnosable without opening devtools otherwise.
   if (/captcha/i.test(msg)) {
     const reason = msg.match(/\(([^)]+)\)/)?.[1];
+    // "timeout-or-duplicate" is almost always Supabase's own outbound call to the captcha
+    // provider (Cloudflare Turnstile) not coming back in time — a provider-side network/
+    // capacity issue (see status.supabase.com), not a real duplicate submission and not
+    // anything the person or this app did wrong. Say that plainly so a retry doesn't read
+    // as "you failed the captcha."
+    if (reason === "timeout-or-duplicate") {
+      return "Our sign-in provider is having a temporary issue — this isn't something you did wrong. Please try again in a moment.";
+    }
     return reason ? `Captcha check failed: ${reason}. Please try again.` : "Captcha check failed. Please complete it and try again.";
   }
 
