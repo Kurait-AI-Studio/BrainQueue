@@ -7,26 +7,66 @@ as a major vs. mid-level release.
 
 ## [Unreleased]
 
-### Fixed
-- **Magic-link submit guard hardened.** The double-fire guard added for the
-  `timeout-or-duplicate` captcha error relied on React state, which a genuinely synchronous
-  double-dispatch (e.g. iOS Safari firing `touchend` + `click` for one tap) could still slip
-  past. Replaced with a `useRef` lock, which is synchronous and immune to render timing.
-- **Captcha-timeout errors no longer read as user error.** A `timeout-or-duplicate` response
-  is almost always Supabase's own outbound call to the captcha provider not completing in
-  time (a provider-side network/capacity issue — confirmed against a real incident on
-  status.supabase.com), not a real duplicate submission. The message now says plainly that
-  it isn't something the person did wrong, instead of a generic "Captcha check failed."
+## [2.4.0] — 2026-07-01
+Capture inbox ships: "capture now, process later" stops being just the thesis and becomes
+a real, usable part of the app.
+
+### Added
+- **Capture inbox.** A new "Capture" tab (pending-count badge) decouples getting a thought
+  out of your head from processing it into tasks: type or paste, then "Capture & keep"
+  (saved, field clears, walk away) or "Capture & process now". Lands right after onboarding.
+- **Captures sync across devices** via a new `captures` table (RLS-protected owner CRUD),
+  falling back to local-only if the migration hasn't been applied yet.
+- **Raw → corrections lineage.** Processing a capture stamps `capture_id` through
+  `brain_dump_created` → `parse_requested` → `final_committed`, so the full chain — raw
+  note, submitted dump, model output, human-corrected result — is reconstructable.
+- **Near-duplicate detection** (warns, never blocks): the Brain Dump preview flags tasks
+  resembling existing open ones, and the Capture inbox warns when a new note resembles an
+  earlier capture.
+- **Batch sort-all.** Sorting is now "Sort all into tasks" — every saved capture is combined
+  and processed together in one dump, instead of one at a time.
+- **Stale-capture reminder.** A calm, non-guilt nudge ("You captured something N days
+  ago...") once a capture has sat unprocessed for 3+ days; dismiss snoozes it a day.
+- **XP resistance bonus.** A heavy (effort ≥ 3), dreaded (pleasure ≤ 2) task now earns bonus
+  XP scaled to how avoided and how long it was — rewarding the grind on exactly the tasks
+  ADHD makes easiest to avoid.
+- **Settings → Replay onboarding**, so anyone who skipped it can re-see the flow without
+  the console.
 
 ### Changed
-- **Cross-dump category consistency now runs for everyone**, not only with Memory on. It uses
-  only your own data to serve your own dump (providing the service, not training), so it
-  doesn't require the training opt-in. Memory still gates behavioral learning (Level 0) and
-  model training.
+- **Onboarding's Memory step is select-then-confirm.** Tapping a card highlights it; a
+  separate "Turn on Memory" / "Continue without Memory" button confirms the choice — a more
+  deliberate consent moment.
+- **Capture screen redesigned**, twice this cycle: first calmer and more reassuring (soft
+  glow, "What's on your mind?", low-pressure copy, "Save it" as the easy default), then a
+  golden-ratio layout (Fibonacci spacing, golden-rectangle canvas) with saved captures
+  hidden by default behind a discreet "Saved · N ▸" toggle so the inbox never overwhelms.
+- **Cross-dump category consistency now runs for everyone**, not only with Memory on. It
+  uses only your own data to serve your own dump (providing the service, not training), so
+  it doesn't require the training opt-in. Memory still gates behavioral learning (Level 0)
+  and model training.
+
+### Fixed
+- **Crash on every login.** A temporal-dead-zone bug (`captures` read before its destructure
+  in a new `useMemo`) threw on every mount with no error boundary, blanking the app after
+  any sign-in method.
+- **Captcha failures now show their real reason** instead of one generic message — the
+  actual provider code (`invalid-input-response`, `timeout-or-duplicate`, etc.) is
+  surfaced, and Cloudflare Turnstile's own client-side error code (e.g. domain-not-allowed)
+  is now logged and shown instead of discarded.
+- **Magic-link double-submit.** Enter + a button tap, or a fast double-tap, could fire two
+  requests with the same single-use captcha token — the second always failed with
+  `timeout-or-duplicate`, even on a valid first attempt. Guarded, then hardened with a
+  `useRef` lock to close a residual race on genuinely synchronous double-dispatch (e.g. iOS
+  Safari's touchend + click).
+- **Captcha-timeout errors no longer read as user error.** A `timeout-or-duplicate` response
+  is almost always Supabase's own call to the captcha provider not completing in time
+  (confirmed against a live status.supabase.com capacity incident) — the message now says
+  plainly it isn't the user's fault.
 
 ### Internal
 - `app_version` in telemetry is now injected from `package.json` at build time, so it can
-  never drift from the released version again.
+  never drift from the released version again (it had drifted to `0.0.0`).
 
 ## [2.3.0] — 2026-06-28
 The release that turns the telemetry foundation into a real, consent-based product:
