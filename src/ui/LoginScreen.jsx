@@ -86,6 +86,13 @@ export function LoginScreen() {
   };
 
   const magic = async () => {
+    // Guard against a double-fire (Enter key + button tap, or a fast double-tap on mobile):
+    // Turnstile tokens are single-use, so two concurrent calls with the same token always
+    // produce a "timeout-or-duplicate" captcha error on the second request — even on an
+    // otherwise valid, first-time attempt. The button already disables while busy; this
+    // makes `magic()` itself safe regardless of what triggers it (e.g. onKeyDown, which
+    // doesn't share the button's disabled condition).
+    if (busy) return;
     if (!email.trim()) return;
     if (CAPTCHA_SITE_KEY && !captchaToken) { setError("Please complete the captcha first."); return; }
     setBusy("email"); setError(null);
